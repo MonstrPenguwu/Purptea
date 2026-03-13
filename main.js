@@ -145,6 +145,12 @@ ipcMain.handle('chat:connect-youtube', async (_event, videoId) => {
 ipcMain.handle('chat:disconnect-youtube', async () => {
     return chatManager.disconnectYoutube();
 });
+ipcMain.handle('chat:send-twitch', async (_event, channel, message, token, username) => {
+    return chatManager.sendTwitchMessage(channel, message, token, username);
+});
+ipcMain.handle('chat:send-twitch-guest', async (_event, guestId, channel, message, token, username) => {
+    return chatManager.sendTwitchMessage(channel, message, token, username);
+});
 
 // ── Guest IPC ────────────────────────────────────────────────────────────────
 ipcMain.handle('guest:add', async (_event, platform, username, apiKey) => {

@@ -717,6 +717,118 @@ body {
     display: inline-block;
 }
 
+/* ─── Chat Input Panel ─── */
+.chat-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chat-input-targets {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.chat-channel-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 2px solid #3a3a4e;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #25253a;
+    color: #e0e0e0;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23a0a0b0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+}
+
+.chat-channel-select:focus {
+    outline: none;
+    border-color: #7289da;
+    background-color: #2a2a3e;
+}
+
+.chat-channel-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.chat-channel-select option {
+    background: #25253a;
+    color: #e0e0e0;
+    padding: 6px;
+}
+
+.chat-input-row {
+    display: flex;
+    gap: 6px;
+}
+
+#chat-input-field {
+    flex: 1;
+    padding: 10px 12px;
+    border: 2px solid #3a3a4e;
+    border-radius: 8px;
+    font-size: 15px;
+    background: #25253a;
+    color: #e0e0e0;
+    font-family: inherit;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+#chat-input-field:focus {
+    outline: none;
+    border-color: #7289da;
+    background: #2a2a3e;
+}
+
+#chat-input-field:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.chat-send-btn {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #5865f2, #4752c4);
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.chat-send-btn:hover {
+    background: linear-gradient(135deg, #6d7bf2, #5865f2);
+    transform: scale(1.05);
+}
+
+.chat-send-btn:active {
+    transform: scale(0.95);
+}
+
+.chat-send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.chat-input-status {
+    font-size: 12px;
+    color: #a0a0b0;
+    min-height: 16px;
+}
+
+.chat-input-status.error { color: #ff6b6b; }
+.chat-input-status.success { color: #4caf50; }
+
 /* ─── Activity Feed ─── */
 .activity-filters {
     display: flex;

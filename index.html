@@ -186,6 +186,30 @@
             </div>
         </div>
 
+        <!-- Panel: Chat Input -->
+        <div class="panel" id="panel-chatinput" data-panel="chatinput">
+            <div class="panel-header" data-drag-handle>
+                <span class="panel-title">✏️ Send Twitch Message</span>
+                <div class="panel-controls">
+                    <button class="panel-collapse-btn" title="Collapse">−</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="chat-input-container">
+                    <div class="chat-input-targets">
+                        <select id="chat-channel-select" class="chat-channel-select" disabled>
+                            <option value="" disabled selected>Log in &amp; connect to Twitch</option>
+                        </select>
+                    </div>
+                    <div class="chat-input-row">
+                        <input type="text" id="chat-input-field" placeholder="Type a message..." maxlength="500" autocomplete="off">
+                        <button id="chat-send-btn" class="chat-send-btn" title="Send">➤</button>
+                    </div>
+                    <div class="chat-input-status" id="chat-input-status"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Add Guest Modal -->

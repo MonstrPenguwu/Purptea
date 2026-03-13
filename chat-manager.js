@@ -838,6 +838,34 @@ class ChatManager {
     // ══════════════════════════════════════════════════════════════════════════
     //  CLEANUP
     // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Send a message to a Twitch channel using an authenticated client.
+     * Creates a temporary auth client if needed.
+     */
+    async sendTwitchMessage(channel, message, token, username) {
+        if (!channel || !message || !token || !username) {
+            return { success: false, error: 'Missing credentials. Please log in to Twitch.' };
+        }
+        try {
+            // Create a temporary authenticated client to send the message
+            const authClient = new tmi.Client({
+                options: { debug: false },
+                identity: {
+                    username: username,
+                    password: `oauth:${token}`
+                },
+                channels: [channel]
+            });
+            await authClient.connect();
+            await authClient.say(channel, message);
+            authClient.disconnect();
+            return { success: true };
+        } catch (err) {
+            return { success: false, error: err.message || 'Failed to send message' };
+        }
+    }
+
     destroy() {
         // Disconnect all
         if (this.twitchClient) {

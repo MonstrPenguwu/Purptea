@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('purptea', {
     openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
     writeClipboard: (text) => ipcRenderer.invoke('clipboard:write', text),
 
+    // ===== Chat Send =====
+    sendTwitchMessage: (channel, message, token, username) => ipcRenderer.invoke('chat:send-twitch', channel, message, token, username),
+    sendTwitchGuestMessage: (guestId, channel, message, token, username) => ipcRenderer.invoke('chat:send-twitch-guest', guestId, channel, message, token, username),
+
     // ===== Overlay =====
     openOverlay: () => ipcRenderer.send('open-overlay'),
     closeOverlay: () => ipcRenderer.send('close-overlay'),

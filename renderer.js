@@ -213,7 +213,6 @@ function addChatMessage(platform, username, message, guestName = null, guestColo
     const badge = document.createElement('span');
     badge.className = 'platform-badge';
     badge.textContent = platform;
-    if (guestColor) badge.style.backgroundColor = guestColor;
 
     if (guestName) {
         const guestBadge = document.createElement('span');
@@ -438,10 +437,12 @@ function setupIpcListeners() {
                 twitchConnected = true;
                 twitchStatus.className = 'status connected';
                 connectTwitchBtn.textContent = 'Disconnect from Chat';
+                if (window._updateChatInputState) window._updateChatInputState();
             } else if (status === 'disconnected' || status === 'error' || status === 'stream-ended') {
                 twitchConnected = false;
                 twitchStatus.className = 'status disconnected';
                 connectTwitchBtn.textContent = 'Connect to Chat';
+                if (window._updateChatInputState) window._updateChatInputState();
                 if (status === 'disconnected') {
                     stopTwitchViewerPolling();
                     updateViewerDisplay('twitch', null);
@@ -494,6 +495,7 @@ function setupIpcListeners() {
         if (status === 'connected') {
             guest.connected = true;
             guest.statusElement.className = 'guest-status connected';
+            if (window._updateChatInputState) window._updateChatInputState();
             // If YouTube returned a channel name, update the card
             if (channelName && guest.cardElement) {
                 guest.name = channelName.substring(0, 20);
@@ -507,6 +509,7 @@ function setupIpcListeners() {
         } else {
             guest.connected = false;
             guest.statusElement.className = 'guest-status disconnected';
+            if (window._updateChatInputState) window._updateChatInputState();
         }
     });
 
@@ -586,6 +589,7 @@ async function handleTwitchConnect() {
         twitchConnected = false;
         stopTwitchViewerPolling();
         updateViewerDisplay('twitch', null);
+        if (window._updateChatInputState) window._updateChatInputState();
         return;
     }
 
@@ -773,6 +777,7 @@ async function removeGuest(guestId) {
     if (guest.cardElement) guest.cardElement.remove();
     guests = guests.filter(g => g.id !== guestId);
     updateGuestsDisplay();
+    if (window._updateChatInputState) window._updateChatInputState();
 }
 
 // ── Guest modal ──────────────────────────────────────────────────────────
@@ -942,6 +947,9 @@ function updateTwitchAuthUI(isLoggedIn) {
 
         document.querySelectorAll('.guest-clip-btn').forEach(btn => { btn.disabled = true; });
     }
+
+    // Update chat input state when auth changes
+    if (window._updateChatInputState) window._updateChatInputState();
 }
 
 function logoutTwitch() {
@@ -1224,7 +1232,7 @@ async function createClipForChannel(channel) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 const LAYOUT_STORAGE_KEY = 'purptea_panel_order';
-const DEFAULT_ORDER = ['config', 'guests', 'viewers', 'chat', 'activity'];
+const DEFAULT_ORDER = ['config', 'guests', 'viewers', 'chat', 'chatinput', 'activity'];
 
 /**
  * Reorder panel DOM elements to match an ordered array of panel IDs.
@@ -1256,7 +1264,8 @@ function restoreLayout() {
     if (saved) {
         try {
             const order = JSON.parse(saved);
-            if (Array.isArray(order) && order.length === DEFAULT_ORDER.length) {
+            if (Array.isArray(order) && order.length === DEFAULT_ORDER.length &&
+                DEFAULT_ORDER.every(id => order.includes(id))) {
                 applyOrder(order);
                 return;
             }
@@ -1635,6 +1644,187 @@ function initializeApp() {
 
     // ── Set up all IPC event listeners ───────────────────────────────────
     setupIpcListeners();
+
+    // ── Chat Input Panel ─────────────────────────────────────────────────
+    const chatInputField = document.getElementById('chat-input-field');
+    const chatSendBtn = document.getElementById('chat-send-btn');
+    const chatInputStatus = document.getElementById('chat-input-status');
+    const chatChannelSelect = document.getElementById('chat-channel-select');
+
+    /**
+     * Rebuild the channel dropdown based on current connections.
+     * Options: main Twitch channel, each connected Twitch guest, "All Channels".
+     */
+    function rebuildChannelDropdown() {
+        if (!chatChannelSelect) return;
+        const token = localStorage.getItem('twitch_access_token');
+        const username = localStorage.getItem('twitch_username');
+        const mainChannel = twitchChannelInput ? twitchChannelInput.value.trim() : '';
+
+        chatChannelSelect.innerHTML = '';
+
+        // Collect available channels
+        const channels = [];
+
+        if (token && username && mainChannel && twitchConnected) {
+            channels.push({ value: `main:${mainChannel}`, label: `#${mainChannel} (main)` });
+        }
+
+        // Add connected Twitch guests
+        guests.forEach(g => {
+            if (g.platform === 'twitch' && g.connected) {
+                channels.push({ value: `guest:${g.id}:${g.username}`, label: `#${g.username} (${g.name})` });
+            }
+        });
+
+        if (channels.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.disabled = true;
+            opt.selected = true;
+            opt.textContent = token ? 'Connect to a Twitch channel first' : 'Log in & connect to Twitch';
+            chatChannelSelect.appendChild(opt);
+            chatChannelSelect.disabled = true;
+            if (chatInputField) chatInputField.disabled = true;
+            if (chatSendBtn) chatSendBtn.disabled = true;
+            if (chatInputStatus) {
+                chatInputStatus.textContent = token ? 'Connect to a Twitch channel first' : 'Log in to Twitch to send messages';
+                chatInputStatus.className = 'chat-input-status';
+            }
+            return;
+        }
+
+        // Add "All Channels" if more than one
+        if (channels.length > 1) {
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = `📢 All Channels (${channels.length})`;
+            chatChannelSelect.appendChild(allOpt);
+        }
+
+        // Add individual channels
+        channels.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch.value;
+            opt.textContent = ch.label;
+            chatChannelSelect.appendChild(opt);
+        });
+
+        // Select first option (All if multiple, or the single channel)
+        chatChannelSelect.selectedIndex = 0;
+        chatChannelSelect.disabled = false;
+        if (chatInputField) chatInputField.disabled = false;
+        if (chatSendBtn) chatSendBtn.disabled = false;
+
+        updateChatInputStatusText();
+    }
+
+    function updateChatInputStatusText() {
+        if (!chatInputStatus || !chatChannelSelect) return;
+        const username = localStorage.getItem('twitch_username');
+        const selected = chatChannelSelect.value;
+        if (!selected || !username) return;
+
+        if (selected === 'all') {
+            chatInputStatus.textContent = `Sending as ${username} to all channels`;
+            chatInputStatus.className = 'chat-input-status success';
+        } else {
+            const channelName = selected.includes(':') ? selected.split(':').pop() : selected;
+            chatInputStatus.textContent = `Sending as ${username} to #${channelName}`;
+            chatInputStatus.className = 'chat-input-status success';
+        }
+    }
+
+    if (chatChannelSelect) {
+        chatChannelSelect.addEventListener('change', updateChatInputStatusText);
+    }
+
+    function updateChatInputState() {
+        rebuildChannelDropdown();
+    }
+
+    async function sendChatMessage() {
+        if (!chatInputField || !chatInputField.value.trim()) return;
+        if (!chatChannelSelect || chatChannelSelect.disabled) return;
+
+        const message = chatInputField.value.trim();
+        const token = localStorage.getItem('twitch_access_token');
+        const username = localStorage.getItem('twitch_username');
+        const selected = chatChannelSelect.value;
+
+        if (!token || !username || !selected) {
+            if (chatInputStatus) {
+                chatInputStatus.textContent = 'Not connected — log in and connect to Twitch first';
+                chatInputStatus.className = 'chat-input-status error';
+            }
+            return;
+        }
+
+        chatInputField.disabled = true;
+        chatSendBtn.disabled = true;
+
+        try {
+            // Build list of channels to send to
+            const targets = [];
+            if (selected === 'all') {
+                // Send to all channels in the dropdown
+                Array.from(chatChannelSelect.options).forEach(opt => {
+                    if (opt.value && opt.value !== 'all' && !opt.disabled) {
+                        targets.push(opt.value);
+                    }
+                });
+            } else {
+                targets.push(selected);
+            }
+
+            const results = await Promise.allSettled(targets.map(target => {
+                const channel = target.split(':').pop();
+                return window.purptea.sendTwitchMessage(channel, message, token, username);
+            }));
+
+            const failures = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success));
+
+            if (failures.length === 0) {
+                chatInputField.value = '';
+                updateChatInputStatusText();
+            } else if (failures.length < targets.length) {
+                chatInputField.value = '';
+                if (chatInputStatus) {
+                    chatInputStatus.textContent = `Sent to ${targets.length - failures.length}/${targets.length} channels`;
+                    chatInputStatus.className = 'chat-input-status';
+                }
+            } else {
+                const errMsg = failures[0].status === 'fulfilled' ? failures[0].value.error : failures[0].reason;
+                if (chatInputStatus) {
+                    chatInputStatus.textContent = errMsg || 'Failed to send';
+                    chatInputStatus.className = 'chat-input-status error';
+                }
+            }
+        } catch (err) {
+            if (chatInputStatus) {
+                chatInputStatus.textContent = err.message || 'Failed to send';
+                chatInputStatus.className = 'chat-input-status error';
+            }
+        }
+
+        chatInputField.disabled = false;
+        chatSendBtn.disabled = false;
+        chatInputField.focus();
+    }
+
+    if (chatSendBtn) chatSendBtn.addEventListener('click', sendChatMessage);
+    if (chatInputField) {
+        chatInputField.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+    }
+
+    // Update chat input state when connections change
+    window._updateChatInputState = updateChatInputState;
+    updateChatInputState();
 
     // ── Connect buttons ──────────────────────────────────────────────────
     if (connectTwitchBtn) connectTwitchBtn.addEventListener('click', handleTwitchConnect);
