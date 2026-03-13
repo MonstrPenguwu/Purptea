@@ -1,0 +1,142 @@
+# Project Rules and Guidelines
+
+## LIVE STREAMING IN PROGRESS
+⚠️ This project is being developed during a LIVE STREAM
+
+## Security & Sensitive Information Protocol
+
+### ALWAYS warn the user before:
+1. Requesting API keys, tokens, or credentials
+2. Displaying sensitive information in code or terminal
+3. Exposing security vulnerabilities or configuration details
+4. Creating files that may contain secrets (e.g., .env files)
+5. Running commands that might expose system information
+6. Installing packages from external sources
+
+### When encountering sensitive operations:
+- **PAUSE** and clearly warn the user
+- **EXPLAIN** what sensitive information is needed and why
+- **ASK** "Would you like to continue? We can handle this off-stream if preferred."
+- **SUGGEST** alternatives (placeholders, environment variables, etc.)
+
+## Communication Style
+
+### End of Task Summaries:
+After completing actions, provide:
+1. A clear summary of what was accomplished
+2. **Educational/Informational addition** - Explain:
+   - Why we did it this way
+   - What technology/pattern was used
+   - Best practices applied
+   - Interesting facts or tips related to the work
+   - How it works under the hood
+
+## Project Context
+
+### Purptea - Unified Chat Viewer
+- **Platform**: Electron desktop application
+- **Purpose**: Display Twitch, TikTok, and YouTube live chat in one unified interface
+- **Tech Stack**: 
+  - Electron v28.0.0
+  - Node.js with full nodeIntegration
+  - HTML/CSS/JavaScript renderer
+- **Audience**: Live stream viewers learning along
+
+### Core Features
+1. **Multi-Platform Chat Integration**
+   - Twitch: tmi.js v1.8.5 (anonymous connections, channel validation via DecAPI)
+   - TikTok: tiktok-live-connector v2.1.1-beta1 (WebcastPushConnection)
+   - YouTube: masterchat (live chat with metadata support)
+   - **Connect/Disconnect Toggle**: All platforms support toggling connections on/off without app restart
+     * Buttons change text: "Connect to Chat" ⇄ "Disconnect from Chat"
+     * Clean disconnection with proper cleanup (tiktokLikeTracker cleared, etc.)
+
+2. **Twitch Authentication & Advanced Features**
+   - OAuth Flow: CLIENT_ID 'yk91iuckpvpmwhuqwhrzis0343stke', redirect http://localhost:3000
+   - Required Scopes: chat:read, chat:edit, clips:edit, user:read:email, channel:read:redemptions, moderator:manage:banned_users, moderator:manage:chat_messages
+   - Tokens stored in localStorage with auto-restore on app restart
+   - Clip Creation: Helix API creates clips for main channel + all Twitch guests
+   - Channel Point Redemptions: PubSub WebSocket (wss://pubsub-edge.twitch.tv)
+     * Requires channel-points-channel-v1.{userId} topic subscription
+     * PING/PONG keepalive every 4 minutes
+     * Displays as "⭐ System: {user} redeemed: {reward} - "{input}""
+     * Must add wss://pubsub-edge.twitch.tv to Content-Security-Policy
+
+3. **Twitch Moderation System**
+   - Right-click context menu on any Twitch message (main window + overlay)
+   - Actions available:
+     * Delete Message (deleteTwitchMessage)
+     * Timeout 1m/10m/1h/24h (timeoutTwitchUser with duration in seconds)
+     * Ban User (banTwitchUser with confirmation dialog)
+   - Requires logged-in Twitch account with mod/broadcaster permissions
+   - Message IDs and User IDs stored as data attributes (dataset.messageId, dataset.userId)
+   - getBroadcasterId() fetches channel owner ID on connection
+   - Context menu intelligently positions to avoid screen cutoff
+   - Ban cancellation shows "Ban cancelled" message instead of error
+   - Overlay moderation uses IPC: overlay → main.js → renderer.js → API calls
+
+4. **Notification System**
+   - TikTok Likes: Per-user cooldown (5 minutes) to prevent spam
+   - TikTok Gifts: Only shows completed streak counts (repeatEnd: true)
+   - Volume Control: Slider 0-100%, default 30%, uses Web Audio API
+   - Audio: Oscillator-based notification sounds with configurable gain
+
+5. **Emote Support**
+   - Twitch: CDN image loading from static-cdn.jtvnw.net
+   - YouTube: Emoji/emote thumbnails from chat messages
+   - 28px height inline display
+
+6. **Guest System**
+   - Add unlimited guests from any platform
+   - Color-coded badges for visual identification
+   - Individual connection status per guest
+   - Channel name display after connection
+   - Master Clip: Single button clips all Twitch guests simultaneously
+
+7. **Chat Overlay Window**
+   - Transparent overlay with ultra-transparent mode toggle
+   - Pop-out button: position sticky, stays visible while scrolling
+   - Ultra-transparent styling: bold text, black outlines for visibility
+   - System usernames: black text with white outline
+   - Clip button: creates clip for main Twitch channel from overlay
+   - Moderation context menu: Full mod features available in overlay
+   - **Draggable & Resizable**: Click title to drag, edges/corners to resize
+   - IPC communication: overlay → main.js → renderer.js
+   - **CRITICAL CSS**: Body must have `-webkit-app-region: no-drag` or all mouse events are blocked
+     * Only .overlay-title has `-webkit-app-region: drag`
+     * Buttons need `z-index: 99999` and `-webkit-app-region: no-drag`
+     * Chat area needs `-webkit-app-region: no-drag`
+
+### Important Technical Notes
+- **YouTube Video IDs**: Case-sensitive (base64 encoding)new OAuth scopes
+- **localStorage Keys**: twitch_access_token, twitch_username, twitch_user_id, twitch_broadcaster_id
+- **IPC Events**: 
+  * create-clip-from-overlay (overlay → main → renderer)
+  * moderate-user (overlay → main → renderer)
+  * send-to-overlay (renderer → main → overlay)
+- **Overlay Mouse Events**: Use mousedown event with e.button === 2 for right-click detection
+  * contextmenu event may not fire reliably in frameless transparent windows
+  * Use e.preventDefault() and e.stopPropagation() to prevent default menus
+- **Context Menu Positioning**: Check getBoundingClientRect() against window dimensions to prevent cutoff
+- **Message Data Storage**: Twitch messages store messageId and userId in dataset for moderationl metadata loads
+- **Connection Validation**: Twitch uses DecAPI with 10s timeout to verify channels exist
+- **Content Security Policy**: Must include all WebSocket endpoints in connect-src directive
+  * index.html CSP includes: wss://irc-ws.chat.twitch.tv, wss://pubsub-edge.twitch.tv, wss://*.tiktok.com
+- **PubSub Requirements**: User must log out and re-authenticate after adding channel:read:redemptions scope
+- **localStorage Keys**: twitch_access_token, twitch_username, twitch_user_id
+- **IPC Events**: create-clip-from-overlay (overlay → main → renderer)
+
+### File Structure
+- `main.js` - Electron main process
+- `renderer.js` - Application logic (900+ lines)
+- `index.html` - UI structure with config panels, guest modal
+- `styles.css` - Platform-specific styling and animations
+- `package.json` - Dependencies and scripts
+
+### Known Platform Quirks
+- TikTok: Requires `processInitialData: false` for reliability
+- YouTube: Works without auth for own streams, needs cookies for others (feature removed)
+- Twitch: Channel names are case-insensitive, always lowercased
+
+---
+*Remember: Protect the streamer's privacy and educate the audience!*

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purptea Chat Overlay</title>
+    <link rel="stylesheet" href="overlay-styles.css">
+</head>
+<body>
+    <!-- Fixed buttons always visible -->
+    <button class="overlay-toggle" id="toggle-transparency" title="Toggle Ultra Transparent">👁️</button>
+    <button class="overlay-clip" id="clip-button" title="Create Clip">✂️</button>
+    <button class="overlay-close" id="close-overlay">✕</button>
+    
+    <div class="overlay-container" id="overlay-container">
+        <div class="overlay-header" id="overlay-header">
+            <span class="overlay-title" id="drag-handle">💬 Invisiblessed Chat Overlay</span>
+        </div>
+        <div class="overlay-chat" id="overlay-chat">
+            <div class="overlay-welcome">
+                <p>Chat overlay active</p>
+                <p class="small">Waiting for messages...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Moderation Context Menu -->
+    <div id="mod-context-menu" class="mod-context-menu" style="display: none;">
+        <div class="mod-menu-item" data-action="delete">🗑️ Delete Message</div>
+        <div class="mod-menu-divider"></div>
+        <div class="mod-menu-item" data-action="timeout-1m">⏱️ Timeout 1 minute</div>
+        <div class="mod-menu-item" data-action="timeout-10m">⏱️ Timeout 10 minutes</div>
+        <div class="mod-menu-item" data-action="timeout-1h">⏱️ Timeout 1 hour</div>
+        <div class="mod-menu-item" data-action="timeout-24h">⏱️ Timeout 24 hours</div>
+        <div class="mod-menu-divider"></div>
+        <div class="mod-menu-item mod-ban" data-action="ban">🔨 Ban User</div>
+    </div>
+    
+    <script src="overlay-renderer.js"></script>
+</body>
+</html>

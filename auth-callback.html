@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'none';">
+    <title>Twitch Authentication</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #9146ff 0%, #772ce8 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: white;
+        }
+        .message {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .message h1 {
+            margin: 0 0 10px 0;
+        }
+        .message p {
+            margin: 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="message">
+        <h1>✓ Authentication Successful</h1>
+        <p>Redirecting back to app...</p>
+    </div>
+    <script>
+        // Extract token from URL hash and send to opener
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        
+        if (accessToken && window.opener) {
+            // Send token to parent window
+            window.opener.postMessage({ type: 'twitch-auth', token: accessToken }, '*');
+            // Close this window after a short delay
+            setTimeout(() => {
+                window.close();
+            }, 1000);
+        } else if (!accessToken) {
+            document.querySelector('.message h1').textContent = '✗ Authentication Failed';
+            document.querySelector('.message p').textContent = 'No access token received';
+        }
+    </script>
+</body>
+</html>

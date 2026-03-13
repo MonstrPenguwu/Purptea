@@ -1,0 +1,377 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: transparent;
+    overflow: hidden;
+    -webkit-app-region: no-drag; /* Changed from drag to allow mouse events */
+}
+
+.overlay-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.overlay-header {
+    background: rgba(30, 30, 46, 0.95);
+    padding: 8px 12px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: none;
+    transition: all 0.3s ease;
+    -webkit-app-region: no-drag; /* No drag on header itself */
+    z-index: 1; /* Lower than buttons */
+}
+
+.overlay-title {
+    color: #e0e0e0;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: move;
+    -webkit-app-region: drag; /* Only title is draggable */
+    padding: 4px 0;
+    margin-right: 150px; /* Space for buttons on right */
+}
+
+.header-buttons {
+    display: flex;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+}
+
+.overlay-toggle {
+    position: fixed;
+    top: 15px;
+    right: 60px;
+    z-index: 99999;
+    background: rgb(91, 66, 148);
+    color: black;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+}
+
+.overlay-toggle:hover {
+    background: rgba(53, 16, 122, 0.9);
+}
+
+.overlay-clip {
+    position: fixed;
+    top: 15px;
+    right: 105px;
+    z-index: 99999;
+    background: linear-gradient(135deg, #dab759 0%, #cfab47 100%);
+    color: white;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.overlay-clip:hover {
+    background: linear-gradient(135deg, #cfab47 0%, #b89735 100%);
+    transform: scale(1.1);
+}
+
+.overlay-close {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 99999;
+    -webkit-app-region: no-drag;
+    z-index: 10000;
+    background: rgb(197, 118, 118);
+    color: black;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    font-weight: bold;
+    -webkit-app-region: no-drag;
+}
+
+.overlay-close:hover {
+    background: rgba(199, 50, 50, 0.9); 
+}
+
+.overlay-chat {
+    flex: 1;
+    background: rgba(25, 25, 38, 0.92);
+    -webkit-app-region: no-drag;
+    border-radius: 0 0 8px 8px;
+    padding: 15px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: none;
+}
+
+.overlay-welcome {
+    text-align: center;
+    padding: 20px;
+    color: #707080;
+}
+
+.overlay-welcome p {
+    margin: 5px 0;
+    font-size: 16px;
+}
+
+.overlay-welcome .small {
+    font-size: 12px;
+    color: #808090;
+}
+
+.chat-message {
+    padding: 10px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: rgba(42, 42, 62, 0.95);
+    animation: slideIn 0.3s ease-out;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    word-wrap: break-word;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.chat-message .platform-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 6px;
+    text-transform: uppercase;
+}
+
+.chat-message.twitch .platform-badge {
+    background-color: #9146ff;
+    color: white;
+}
+
+.chat-message.tiktok .platform-badge {
+    background-color: #ff1b85;
+    color: white;
+}
+
+.chat-message.youtube .platform-badge {
+    background-color: #ff0000;
+    color: white;
+}
+
+.chat-message .guest-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-right: 8px;
+    color: white;
+    opacity: 0.9;
+}
+
+.chat-message .username {
+    font-weight: 700;
+    color: #e0e0e0;
+    margin-right: 8px;
+}
+
+.chat-message .message-text {
+    color: #c0c0c8;
+    line-height: 1.4;
+}
+
+.message-text .emote {
+    height: 28px;
+    width: auto;
+    vertical-align: middle;
+    margin: 0 2px;
+    display: inline-block;
+}
+
+.overlay-chat::-webkit-scrollbar {
+    width: 6px;
+}
+
+.overlay-chat::-webkit-scrollbar-track {
+    background: rgba(26, 26, 42, 0.5);
+    border-radius: 10px;
+}
+
+.overlay-chat::-webkit-scrollbar-thumb {
+    background: #4a4a5e;
+    border-radius: 10px;
+}
+
+.overlay-chat::-webkit-scrollbar-thumb:hover {
+    background: #5a5a6e;
+}
+
+/* Ultra-transparent mode */
+body.ultra-transparent .overlay-header {
+    background: transparent;
+    border: none;
+    opacity: 0;
+    pointer-events: none;
+}
+
+body.ultra-transparent .overlay-chat {
+    background: transparent;
+    border: none;
+    padding: 5px;
+}
+
+body.ultra-transparent .chat-message {
+    background: transparent;
+    box-shadow: none;
+}
+
+/* Ultra-transparent mode - all text white with black outline for visibility */
+body.ultra-transparent .chat-message .username,
+body.ultra-transparent .chat-message .message-text,
+body.ultra-transparent .chat-message .message-colon {
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 0 3px #000,
+        0 0 5px #000;
+}
+
+/* Ultra-transparent mode - "System" username gets black text with white outline */
+body.ultra-transparent .chat-message .username.system-username {
+    color: #000000;
+    text-shadow: 
+        -1px -1px 0 #fff,
+        1px -1px 0 #fff,
+        -1px 1px 0 #fff,
+        1px 1px 0 #fff,
+        0 0 3px #fff,
+        0 0 5px #fff;
+}
+
+/* Ultra-transparent mode - badges with black outline */
+body.ultra-transparent .chat-message .platform-badge,
+body.ultra-transparent .chat-message .guest-badge {
+    font-weight: 700;
+    text-shadow: 
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 0 3px #000,
+        0 0 5px #000;
+}
+
+/* Ultra-transparent mode - transparent button backgrounds */
+body.ultra-transparent .overlay-toggle {
+    background: rgba(0, 0, 0, 0);
+}
+
+body.ultra-transparent .overlay-clip {
+    background: rgba(0, 0, 0, 0);
+}
+
+body.ultra-transparent .overlay-close {
+    background: rgba(0, 0, 0, 0);
+    color: white;
+}
+
+/* Hide scrollbar in ultra-transparent mode */
+body.ultra-transparent .overlay-chat::-webkit-scrollbar {
+    display: none;
+}
+
+/* Moderation Context Menu */
+.mod-context-menu {
+    position: fixed;
+    background: #1e1e2e;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    min-width: 200px;
+    padding: 6px 0;
+    animation: contextMenuAppear 0.15s ease-out;
+}
+
+@keyframes contextMenuAppear {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.mod-menu-item {
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    color: #e0e0e0;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mod-menu-item:hover {
+    background: rgba(88, 101, 242, 0.2);
+}
+
+.mod-menu-item.mod-ban {
+    color: #ff4444;
+}
+
+.mod-menu-item.mod-ban:hover {
+    background: rgba(255, 68, 68, 0.15);
+}
+
+.mod-menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 6px 0;
+}
+
+/* Make Twitch messages more interactive */
+.chat-message.twitch {
+    cursor: context-menu;
+}

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.twitch.tv https://id.twitch.tv https://decapi.me wss://irc-ws.chat.twitch.tv wss://pubsub-edge.twitch.tv https://*.tiktok.com wss://*.tiktok.com https://tiktok.eulerstream.com https://www.youtube.com; img-src 'self' data: https:;">
+    <title>Purptea - Unified Chat Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💬Purptea🫖- Unified Chat Viewer</h1>
+            <div class="notification-settings">
+                <label class="notification-toggle">
+                    <input type="checkbox" id="notification-enabled" checked>
+                    <span>🔔 Sound Notifications</span>
+                </label>
+                <label class="cooldown-setting">
+                    <span>Cooldown:</span>
+                    <input type="number" id="notification-cooldown" value="30" min="5" max="300" step="5">
+                    <span>seconds</span>
+                </label>
+                <label class="volume-setting">
+                    <span>🔊 Volume:</span>
+                    <input type="range" id="notification-volume" min="0" max="100" value="30" step="1">
+                    <span id="volume-display">30%</span>
+                </label>
+            </div>
+        </header>
+
+        <div class="config-panel">
+            <div class="config-section">
+                <h3>🟣 Twitch <span id="twitch-status" class="status disconnected">Disconnected</span></h3>
+                <div id="twitch-login-section">
+                    <button id="twitch-login-btn" class="twitch-auth-btn">🔑 Login with Twitch</button>
+                    <div id="twitch-auth-info" class="auth-info" style="display: none;">
+                        <span id="twitch-username-display" class="auth-username"></span>
+                        &nbsp;
+                        <button id="twitch-logout-btn" class="logout-btn">Logout</button>
+                    </div>
+                </div>
+                <input type="text" id="twitch-channel" placeholder="Enter Twitch channel name">
+                <div class="button-group">
+                    <button id="connect-twitch">Connect to Chat</button>
+                    <button id="create-clip-btn" class="clip-btn" disabled title="Login required">✂️ Clip</button>
+                    <button id="master-clip-btn" class="clip-btn master-clip" disabled title="Login required">✂️✂️ Master Clip</button>
+                </div>
+            </div>
+
+            <div class="config-section">
+                <h3>⚫ TikTok <span id="tiktok-status" class="status disconnected">Disconnected</span></h3>
+                <input type="text" id="tiktok-username" placeholder="Enter TikTok username">
+                <div class="api-key-container">
+                    <input type="password" id="tiktok-api-key" placeholder="Sign API Key (optional - from eulerstream.com)">
+                    <button id="tiktok-api-toggle" class="api-toggle-btn" title="Show/Hide key">👁️</button>
+                    <button id="tiktok-api-test" class="api-test-btn" title="Test API key">Test</button>
+                    <button id="tiktok-api-help" class="api-help-btn" title="Get free API key">❓</button>
+                </div>
+                <span id="tiktok-api-status" class="api-status"></span>
+                <button id="connect-tiktok">Connect to Chat</button>
+            </div>
+            
+            <div class="config-section">
+                <h3>🔴 YouTube <span id="youtube-status" class="status disconnected">Disconnected</span></h3>
+                <input type="text" id="youtube-video" placeholder="Enter video ID or URL">
+                <button id="connect-youtube">Connect to Chat</button>
+            </div>
+        </div>
+
+        <div class="guest-section">
+            <div class="guest-header">
+                <h3>👥 Additional Guests</h3>
+                <div class="guest-actions">
+                    <button id="add-guest-btn" class="add-guest-btn" title="Add Guest">+ Add Guest</button>
+                </div>
+            </div>
+            <div id="guests-container" class="guests-container">
+                <div class="empty-state">
+                    <p>No additional guests</p>
+                    <p class="small-text">Click "+ Add Guest" to add more streams</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="viewer-section">
+            <div class="viewer-header">
+                <h3>👁️ Live Viewers</h3>
+                <button id="toggle-viewers-btn" class="toggle-viewers-btn" title="Hide/Show Viewers">👁️ Hide</button>
+            </div>
+            <div id="viewer-stats" class="viewer-stats">
+                <div class="viewer-stat" id="twitch-viewer-stat" style="display: none;">
+                    <span class="platform-badge twitch">TWITCH</span>
+                    <span class="viewer-count" id="twitch-viewer-count">--</span>
+                </div>
+                <div class="viewer-stat" id="tiktok-viewer-stat" style="display: none;">
+                    <span class="platform-badge tiktok">TIKTOK</span>
+                    <span class="viewer-count" id="tiktok-viewer-count">--</span>
+                </div>
+                <div class="viewer-stat" id="youtube-viewer-stat" style="display: none;">
+                    <span class="platform-badge youtube">YOUTUBE</span>
+                    <span class="viewer-count" id="youtube-viewer-count">--</span>
+                </div>
+                <div class="empty-state" id="viewer-empty-state">
+                    <p class="small-text">Connect to streams to see viewer counts</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-container" id="chat-container">
+            <button id="pop-out-btn" class="floating-pop-out-btn" title="Pop Out Chat">⤴</button>
+            <div class="welcome-message">
+                <p>👋 Welcome to Purptea!</p>
+                <p>Connect to Twitch and/or TikTok to see chat messages here.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Guest Modal -->
+    <div id="guest-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Guest</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="modal-step-1" class="modal-step">
+                    <p>Select platform:</p>
+                    <button class="modal-btn twitch-btn" data-platform="twitch">🟣 Twitch</button>
+                    <button class="modal-btn tiktok-btn" data-platform="tiktok">⚫ TikTok</button>
+                    <button class="modal-btn youtube-btn" data-platform="youtube">🔴 YouTube</button>
+                </div>
+                <div id="modal-step-2" class="modal-step" style="display: none;">
+                    <p id="modal-platform-label">Enter username:</p>
+                    <input type="text" id="modal-username-input" placeholder="Username">
+                    <div class="modal-buttons">
+                        <button class="modal-btn-secondary" id="modal-back">Back</button>
+                        <button class="modal-btn-primary" id="modal-add">Add Guest</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Moderation Context Menu -->
+    <div id="mod-context-menu" class="mod-context-menu" style="display: none;">
+        <div class="mod-menu-item" data-action="delete">🗑️ Delete Message</div>
+        <div class="mod-menu-divider"></div>
+        <div class="mod-menu-item" data-action="timeout-1m">⏱️ Timeout 1 minute</div>
+        <div class="mod-menu-item" data-action="timeout-10m">⏱️ Timeout 10 minutes</div>
+        <div class="mod-menu-item" data-action="timeout-1h">⏱️ Timeout 1 hour</div>
+        <div class="mod-menu-item" data-action="timeout-24h">⏱️ Timeout 24 hours</div>
+        <div class="mod-menu-divider"></div>
+        <div class="mod-menu-item mod-ban" data-action="ban">🔨 Ban User</div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
