@@ -57,6 +57,7 @@ Click **🔑 Login with Twitch** to enable:
 - Clip creation
 - Message moderation (delete / timeout / ban)
 - Channel point redemption alerts
+- **Send Twitch messages** — type in the **Send Twitch Message** panel and choose to send to your main channel, a specific Twitch guest's channel, or all connected Twitch channels at once
 
 ### TikTok Sign API Key (optional)
 
