@@ -98,13 +98,13 @@ After completing actions, provide:
    - Master Clip: Single button clips all Twitch guests simultaneously
 
 8. **Panel-Based UI System** (March 2026 Overhaul)
-   - 5 draggable panels: Connections (config), Guests, Viewers, Chat, Activity
+   - 6 draggable panels: Connections (config), Guests, Viewers, Chat, **Send Twitch Message (chatinput)**, Activity
    - **Vertical drag-and-drop reorder**: HTML5 drag API on panel headers
      * Workspace-level `dragover` handler iterates all visible panels by Y midpoint
      * `.dragging` CSS class collapses panel to 0 height during drag
      * `.drop-placeholder` (6px blue gradient line) shows insertion point
      * Layout order persisted to localStorage key `purptea_panel_order`
-     * Default order: config → guests → viewers → chat → activity
+     * Default order: config → guests → viewers → chat → **chatinput** → activity
      * Reset layout button in header restores default order
    - **Panel collapse**: Toggle `.collapsed` class via `−` button
      * `.panel.collapsed .panel-body { display: none !important; }` (needs `!important` for specificity over `#panel-config .panel-body { display: flex }`)
@@ -143,6 +143,18 @@ After completing actions, provide:
     - All font sizes bumped +2px globally via regex replacement
     - Starting window size: 1500×1100 (was 1200×800)
     - Connections panel sections displayed in a row (`flex-direction: row`)
+    - Platform badge colors fixed: removed `badge.style.backgroundColor = guestColor` from `addChatMessage()` (renderer.js) and overlay-renderer.js — guest color was overriding CSS platform colors
+    - Activity feed text color fixed: removed `if (color) textSpan.style.color = color` from `addActivityItem()` — TikTok was passing #000000
+
+13. **Send Twitch Message Panel** (v1.1.0)
+    - Panel ID: `#panel-chatinput`, title: "✏️ Send Twitch Message"
+    - Channel dropdown `#chat-channel-select`: "📢 All Channels (N)" option when 2+ Twitch channels connected, then `main:channel` and `guest:{id}:{channel}` per connected Twitch guest
+    - `rebuildChannelDropdown()` — called on Twitch connect/disconnect, guest remove, auth change
+    - `updateChatInputStatusText()` — shows "Sending as {user} to #{channel}" or "to all channels"
+    - `sendChatMessage()` — parses dropdown value, builds targets array, calls `Promise.allSettled` for multi-channel send
+    - IPC: `chat:send-twitch` and `chat:send-twitch-guest` → `chatManager.sendTwitchMessage(channel, message, token, username)`
+    - `sendTwitchMessage()` in chat-manager.js: creates temp authenticated tmi.js client, connects, `.say()`, disconnects; returns `{success, error}`
+    - Requires Twitch login (token + username in localStorage)
 
 7. **Chat Overlay Window**
    - Transparent overlay with ultra-transparent mode toggle
@@ -190,11 +202,11 @@ After completing actions, provide:
 ### File Structure
 - `main.js` - Electron main process (`contextIsolation: true`, ipcMain.handle handlers, auto-updater); window starts at 1500×1100
 - `chat-manager.js` - Main process module owning all chat lib connections (tmi.js, tiktok-live-connector, masterchat, guests); sends IPC events to renderer
-- `preload.js` - contextBridge for main window; exposes `window.purptea.*` API (connect/disconnect, openOverlay, clipboard, shell, on/once/removeAllListeners)
+- `preload.js` - contextBridge for main window; exposes `window.purptea.*` API (connect/disconnect, openOverlay, clipboard, shell, on/once/removeAllListeners, sendTwitchMessage, sendTwitchGuestMessage)
 - `overlay-preload.js` - contextBridge for overlay window; exposes close, toggleClickThrough, moderate, on('new-chat-message')
-- `renderer.js` - UI logic (~1791 lines); message routing (routeMessage, classifySystemMessage), panel system (drag-drop, collapse, filters, layout persistence), overlay pop-out with auto-collapse; zero `require()` calls
+- `renderer.js` - UI logic (~1985 lines); message routing (routeMessage, classifySystemMessage), panel system (drag-drop, collapse, filters, layout persistence), overlay pop-out with auto-collapse, send Twitch message (rebuildChannelDropdown, sendChatMessage); zero `require()` calls
 - `overlay-renderer.js` - Overlay UI logic; uses `window.purptea.*` throughout
-- `index.html` - 5-panel layout (config, guests, viewers, chat, activity) + join ticker + header + guest modal + mod context menu
+- `index.html` - 6-panel layout (config, guests, viewers, chat, chatinput, activity) + join ticker + header + guest modal + mod context menu
 - `styles.css` - Dark theme (#1a1a2e base), panel system, CSS Grid/flex layouts, drag-and-drop states, platform badges
 - `overlay-styles.css` - Overlay-specific styles
 - `chat-overlay.html` - Overlay window HTML
@@ -212,6 +224,13 @@ After completing actions, provide:
 - `axios` overridden in `masterchat`: `0.27.2` → `^1.7.9` via npm `overrides` in package.json (fixes CSRF, SSRF, DoS)
 - `electron` v28 stays pinned — moderate ASAR integrity bypass requires local file access, not a real threat for desktop chat app
 - Run `npm audit` periodically; `npm install --install-strategy=nested` may be needed to force overrides
+
+### Release History
+- **v1.0.0** — Initial public release
+- **v1.1.0** (March 2026) — Send Twitch Message panel, platform badge color fix, activity feed text color fix, font size bump, 6-panel layout, window 1500×1100
+  * Built with `npm run build:win`
+  * Tagged `v1.1.0`, pushed to GitHub via `git tag v1.1.0 && git push origin v1.1.0`
+  * GitHub Release files: `Purptea Setup 1.1.0.exe`, `Purptea Setup 1.1.0.exe.blockmap`, `Purptea 1.1.0.exe` (portable), `latest.yml` — must all be attached to the GitHub Release for auto-updater
 
 ---
 *Remember: Protect the streamer's privacy and educate the audience!*
