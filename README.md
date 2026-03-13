@@ -37,10 +37,10 @@ Grab the latest release for your platform:
 
 | Platform | File |
 |---|---|
-| Windows (Installer) | `Purptea-Setup-1.0.0.exe` |
-| Windows (Portable) | `Purptea-1.0.0.exe` |
-| macOS | `Purptea-1.0.0.dmg` |
-| Linux | `Purptea-1.0.0.AppImage` or `.deb` |
+| Windows (Installer) | `Purptea-Setup-1.1.0.exe` |
+| Windows (Portable) | `Purptea-1.1.0.exe` |
+| macOS | `Purptea-1.1.0.dmg` |
+| Linux | `Purptea-1.1.0.AppImage` or `.deb` |
 
 ---
 
