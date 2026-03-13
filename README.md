@@ -28,6 +28,7 @@ View Twitch, TikTok, and YouTube live chat in one window. Built with Electron.
 | **YouTube Emoji** | Native YouTube emoji rendering in chat |
 | **Notification Sounds** | Configurable alert chime with volume and cooldown controls |
 | **Auto-Reconnect** | TikTok connections automatically recover from drops (exponential backoff) |
+| **Low Bandwidth** | Chat-only connections — no video streams, minimal data usage even with multiple platforms and guests active |
 | **Secure Architecture** | `contextIsolation` enabled — no `nodeIntegration` in renderers |
 | **Auto-Updates** | Receives updates automatically via GitHub Releases |
 
