@@ -38,7 +38,11 @@ After completing actions, provide:
 - **Purpose**: Display Twitch, TikTok, and YouTube live chat in one unified interface
 - **Tech Stack**: 
   - Electron v28.0.0
-  - Node.js with full nodeIntegration
+  - `contextIsolation: true`, `nodeIntegration: false`, `sandbox: false`
+  - Preload scripts expose safe APIs via `contextBridge` (`preload.js`, `overlay-preload.js`)
+  - All chat libraries run in **main process** via `chat-manager.js`
+  - Renderer uses `window.purptea.*` API — zero `require()` calls
+  - electron-updater v6.1.7 for auto-updates via GitHub Releases
   - HTML/CSS/JavaScript renderer
 - **Audience**: Live stream viewers learning along
 
@@ -110,11 +114,15 @@ After completing actions, provide:
 ### Important Technical Notes
 - **YouTube Video IDs**: Case-sensitive (base64 encoding)new OAuth scopes
 - **localStorage Keys**: twitch_access_token, twitch_username, twitch_user_id, twitch_broadcaster_id
-- **IPC Events**: 
-  * create-clip-from-overlay (overlay → main → renderer)
-  * moderate-user (overlay → main → renderer)
-  * send-to-overlay (renderer → main → overlay)
-- **Overlay Mouse Events**: Use mousedown event with e.button === 2 for right-click detection
+- **IPC Architecture** (contextIsolation model):
+  * **Request-response**: `ipcRenderer.invoke` / `ipcMain.handle` (connect/disconnect, clips, moderation)
+  * **Main → Renderer events**: `webContents.send` → `window.purptea.on(channel, cb)` (chat:message, chat:status, chat:viewer-update, guest:status)
+  * **Overlay events**: main sends `new-chat-message` to overlay window
+  * **Legacy event names still in use**:
+    - `create-clip-from-overlay` (overlay → main → renderer)
+    - `moderate-user` (overlay → main → renderer)
+    - `send-to-overlay` (renderer → main → overlay)
+- **chat-manager.js responsibilities**: owns tmi.js Client, WebcastPushConnection, Masterchat instances; handles TikTok exponential backoff reconnect (3s→60s, max 10 attempts); clears tiktokLikeTracker on disconnect; `chatManager.setMainWindow(win)` must be called after BrowserWindow creation
   * contextmenu event may not fire reliably in frameless transparent windows
   * Use e.preventDefault() and e.stopPropagation() to prevent default menus
 - **Context Menu Positioning**: Check getBoundingClientRect() against window dimensions to prevent cutoff
@@ -124,14 +132,21 @@ After completing actions, provide:
   * index.html CSP includes: wss://irc-ws.chat.twitch.tv, wss://pubsub-edge.twitch.tv, wss://*.tiktok.com
 - **PubSub Requirements**: User must log out and re-authenticate after adding channel:read:redemptions scope
 - **localStorage Keys**: twitch_access_token, twitch_username, twitch_user_id
-- **IPC Events**: create-clip-from-overlay (overlay → main → renderer)
+- **Auto-Updates**: electron-updater checks GitHub Releases on launch (skipped in dev mode via `process.env.NODE_ENV`); `ipcMain.handle('install-update')` triggers `autoUpdater.quitAndInstall()`; publish config: `{ provider: "github", owner: "MonstrPenguwu", repo: "Purptea" }`
+- **IPC Events** (duplicate note): create-clip-from-overlay (overlay → main → renderer)
 
 ### File Structure
-- `main.js` - Electron main process
-- `renderer.js` - Application logic (900+ lines)
+- `main.js` - Electron main process (`contextIsolation: true`, ipcMain.handle handlers, auto-updater)
+- `chat-manager.js` - Main process module owning all chat lib connections (tmi.js, tiktok-live-connector, masterchat, guests); sends IPC events to renderer
+- `preload.js` - contextBridge for main window; exposes `window.purptea.*` API (connect/disconnect, openOverlay, clipboard, shell, on/once/removeAllListeners)
+- `overlay-preload.js` - contextBridge for overlay window; exposes close, toggleClickThrough, moderate, on('new-chat-message')
+- `renderer.js` - UI logic; zero `require()` calls; uses `window.purptea.*` for IPC; Web APIs (fetch, WebSocket, localStorage, OAuth) stay here
+- `overlay-renderer.js` - Overlay UI logic; uses `window.purptea.*` throughout
 - `index.html` - UI structure with config panels, guest modal
 - `styles.css` - Platform-specific styling and animations
-- `package.json` - Dependencies and scripts
+- `overlay-styles.css` - Overlay-specific styles
+- `chat-overlay.html` - Overlay window HTML
+- `package.json` - Dependencies, scripts, electron-builder + GitHub Releases publish config
 
 ### Known Platform Quirks
 - TikTok: Requires `processInitialData: false` for reliability
