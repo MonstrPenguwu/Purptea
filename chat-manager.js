@@ -265,6 +265,16 @@ class ChatManager {
             });
         });
 
+        connection.on('member', (data) => {
+            const displayName = data.nickname || data.uniqueId;
+            this.send('chat:message', {
+                platform: 'tiktok', username: '👋 System',
+                message: `${displayName} joined the live!`,
+                color: '#000000', emotes: null, messageId: null, userId: null,
+                guestId, guestName, guestColor
+            });
+        });
+
         connection.on('follow', (data) => {
             const displayName = data.nickname || data.uniqueId;
             this.send('chat:message', {
