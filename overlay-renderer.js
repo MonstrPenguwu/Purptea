@@ -156,10 +156,6 @@ function addChatMessageToOverlay(data) {
     badge.className = 'platform-badge';
     badge.textContent = data.platform;
     
-    if (data.guestColor) {
-        badge.style.backgroundColor = data.guestColor;
-    }
-    
     // Add guest badge if present
     if (data.guestName) {
         const guestBadge = document.createElement('span');
