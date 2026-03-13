@@ -61,10 +61,12 @@
         "nsis",
         "portable"
       ],
-      "publisherName": "Monstr Penguwu",
       "icon": "build/icon.ico",
-      "sign": null,
       "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "uninstallDisplayName": "Purptea",
+      "shortcutName": "Purptea"
     },
     "mac": {
       "target": "dmg",
