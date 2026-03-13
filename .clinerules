@@ -49,7 +49,7 @@ After completing actions, provide:
 ### Core Features
 1. **Multi-Platform Chat Integration**
    - Twitch: tmi.js v1.8.5 (anonymous connections, channel validation via DecAPI)
-   - TikTok: tiktok-live-connector v2.1.1-beta1 (WebcastPushConnection)
+   - TikTok: tiktok-live-connector v2.1.1-beta1 (TikTokLiveConnection — NOT legacy WebcastPushConnection)
    - YouTube: masterchat (live chat with metadata support)
    - **Connect/Disconnect Toggle**: All platforms support toggling connections on/off without app restart
      * Buttons change text: "Connect to Chat" ⇄ "Disconnect from Chat"
@@ -122,7 +122,12 @@ After completing actions, provide:
     - `create-clip-from-overlay` (overlay → main → renderer)
     - `moderate-user` (overlay → main → renderer)
     - `send-to-overlay` (renderer → main → overlay)
-- **chat-manager.js responsibilities**: owns tmi.js Client, WebcastPushConnection, Masterchat instances; handles TikTok exponential backoff reconnect (3s→60s, max 10 attempts); clears tiktokLikeTracker on disconnect; `chatManager.setMainWindow(win)` must be called after BrowserWindow creation
+- **chat-manager.js responsibilities**: owns tmi.js Client, TikTokLiveConnection, Masterchat instances; handles TikTok exponential backoff reconnect (3s→60s, max 10 attempts); clears tiktokLikeTracker on disconnect; `chatManager.setMainWindow(win)` must be called after BrowserWindow creation
+- **TikTok data access helpers** (top of chat-manager.js):
+  * `tiktokDisplayName(data)` — resolves `data.user?.nickname || data.user?.uniqueId` (raw protobuf) with fallback to `data.nickname || data.uniqueId` (legacy)
+  * `tiktokUid(data)` — resolves user ID from raw or legacy format
+  * `normalizeTiktokEmotes(emotes)` — maps raw protobuf emotes to `{ emoteId, image: { imageUrl }, position }` for renderer
+- **Why TikTokLiveConnection over WebcastPushConnection**: The legacy class processes message batches in a `forEach` with NO per-message try/catch — one bad message (newer TikTok types) silently drops the entire batch including chat messages. TikTokLiveConnection wraps each message in try/catch and has automatic event mapping via `WebcastEventMap`.
   * contextmenu event may not fire reliably in frameless transparent windows
   * Use e.preventDefault() and e.stopPropagation() to prevent default menus
 - **Context Menu Positioning**: Check getBoundingClientRect() against window dimensions to prevent cutoff
@@ -150,8 +155,16 @@ After completing actions, provide:
 
 ### Known Platform Quirks
 - TikTok: Requires `processInitialData: false` for reliability
+- TikTok: Gift handler must safely resolve `giftType`, `giftName`, `repeatCount` from multiple protobuf locations with fallbacks
+- TikTok: `member` event fires on user join — shows "👋 System: {name} joined the live!"
 - YouTube: Works without auth for own streams, needs cookies for others (feature removed)
 - Twitch: Channel names are case-insensitive, always lowercased
+
+### Dependency Security
+- `electron-builder` upgraded `^24.13.3` → `^26.0.0` (fixes `tar` path traversal, `@tootallnate/once`, `http-proxy-agent` chain)
+- `axios` overridden in `masterchat`: `0.27.2` → `^1.7.9` via npm `overrides` in package.json (fixes CSRF, SSRF, DoS)
+- `electron` v28 stays pinned — moderate ASAR integrity bypass requires local file access, not a real threat for desktop chat app
+- Run `npm audit` periodically; `npm install --install-strategy=nested` may be needed to force overrides
 
 ---
 *Remember: Protect the streamer's privacy and educate the audience!*

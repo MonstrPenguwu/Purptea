@@ -7,7 +7,7 @@
  */
 
 const tmi = require('tmi.js');
-const { WebcastPushConnection } = require('tiktok-live-connector');
+const { TikTokLiveConnection } = require('tiktok-live-connector');
 const { Masterchat } = require('masterchat');
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -19,6 +19,26 @@ const TIKTOK_LIKE_COOLDOWN = 5 * 60 * 1000; // 5 min per user
 // ── Helper ───────────────────────────────────────────────────────────────────
 function reconnectDelay(attempts) {
     return Math.min(TIKTOK_RECONNECT_BASE_DELAY * Math.pow(2, attempts), TIKTOK_RECONNECT_MAX_DELAY);
+}
+
+/** Extract display name from raw protobuf or legacy simplified TikTok data */
+function tiktokDisplayName(data) {
+    return data.user?.nickname || data.user?.uniqueId || data.nickname || data.uniqueId || 'Unknown';
+}
+
+/** Extract uid from raw protobuf or legacy simplified TikTok data */
+function tiktokUid(data) {
+    return data.user?.uniqueId || data.user?.userId || data.uniqueId || data.userId;
+}
+
+/** Normalize TikTok emotes from raw protobuf to renderer-friendly format */
+function normalizeTiktokEmotes(emotes) {
+    if (!Array.isArray(emotes) || emotes.length === 0) return null;
+    return emotes.map(e => ({
+        emoteId: e.emote?.emoteId || e.emoteId || '',
+        image: { imageUrl: e.emote?.image?.imageUrl || e.emoteImageUrl || '' },
+        position: e.placeInComment || 0
+    }));
 }
 
 // Guest color palette
@@ -217,7 +237,7 @@ class ChatManager {
         };
         if (this.tiktokApiKey) opts.signApiKey = this.tiktokApiKey;
 
-        this.tiktokConnection = new WebcastPushConnection(username, opts);
+        this.tiktokConnection = new TikTokLiveConnection(username, opts);
         this._attachTiktokHandlers(this.tiktokConnection, username, null, null, null);
 
         try {
@@ -250,13 +270,13 @@ class ChatManager {
     /** Attach TikTok event handlers (works for main or guest connections) */
     _attachTiktokHandlers(connection, username, guestId, guestName, guestColor) {
         connection.on('chat', (data) => {
-            const displayName = data.nickname || data.uniqueId;
+            const displayName = tiktokDisplayName(data);
             this.send('chat:message', {
                 platform: 'tiktok',
                 username: displayName,
                 message: data.comment,
                 color: null,
-                emotes: data.emotes || null,
+                emotes: normalizeTiktokEmotes(data.emotes),
                 messageId: null,
                 userId: null,
                 guestId,
@@ -266,7 +286,7 @@ class ChatManager {
         });
 
         connection.on('member', (data) => {
-            const displayName = data.nickname || data.uniqueId;
+            const displayName = tiktokDisplayName(data);
             this.send('chat:message', {
                 platform: 'tiktok', username: '👋 System',
                 message: `${displayName} joined the live!`,
@@ -276,7 +296,7 @@ class ChatManager {
         });
 
         connection.on('follow', (data) => {
-            const displayName = data.nickname || data.uniqueId;
+            const displayName = tiktokDisplayName(data);
             this.send('chat:message', {
                 platform: 'tiktok', username: '❤️ System',
                 message: `${displayName} followed!`,
@@ -286,7 +306,7 @@ class ChatManager {
         });
 
         connection.on('share', (data) => {
-            const displayName = data.nickname || data.uniqueId;
+            const displayName = tiktokDisplayName(data);
             this.send('chat:message', {
                 platform: 'tiktok', username: '📤 System',
                 message: `${displayName} shared the stream!`,
@@ -296,8 +316,8 @@ class ChatManager {
         });
 
         connection.on('like', (data) => {
-            const uid = data.uniqueId || data.userId;
-            const displayName = data.nickname || data.uniqueId;
+            const uid = tiktokUid(data);
+            const displayName = tiktokDisplayName(data);
             const now = Date.now();
             const last = this.tiktokLikeTracker.get(uid) || 0;
             if (now - last >= TIKTOK_LIKE_COOLDOWN) {
@@ -312,9 +332,13 @@ class ChatManager {
         });
 
         connection.on('gift', (data) => {
-            const displayName = data.nickname || data.uniqueId;
-            if (data.giftType !== 1 || data.repeatEnd) {
-                const giftInfo = data.repeatCount > 1 ? `${data.giftName} x${data.repeatCount}` : data.giftName;
+            const displayName = tiktokDisplayName(data);
+            const giftType = data.giftType ?? data.giftDetails?.giftType ?? data.gift?.gift_type;
+            const repeatEnd = data.repeatEnd ?? false;
+            if (giftType !== 1 || repeatEnd) {
+                const giftName = data.giftName || data.giftDetails?.giftName || data.extendedGiftInfo?.name || 'a gift';
+                const repeatCount = data.repeatCount ?? data.gift?.repeat_count ?? 1;
+                const giftInfo = repeatCount > 1 ? `${giftName} x${repeatCount}` : giftName;
                 this.send('chat:message', {
                     platform: 'tiktok', username: '🎁 System',
                     message: `${displayName} sent ${giftInfo}!`,
@@ -356,7 +380,14 @@ class ChatManager {
         });
 
         connection.on('error', (err) => {
-            console.error(`TikTok error (${guestId ? 'guest ' + guestId : 'main'}):`, err);
+            console.error(`TikTok error (${guestId ? 'guest ' + guestId : 'main'}):`, err?.info || err?.exception || err);
+        });
+
+        // Safety net: log any message decoding issues to help diagnose missing messages
+        connection.on('decodedData', (type, data) => {
+            if (type === 'WebcastChatMessage' && !data?.comment && !data?.data?.comment) {
+                console.warn('TikTok: Received WebcastChatMessage with no comment field:', JSON.stringify(data).substring(0, 200));
+            }
         });
 
         connection.on('disconnected', () => {
@@ -431,7 +462,7 @@ class ChatManager {
                 try { this.tiktokConnection.disconnect(); } catch (e) { /* ignore */ }
             }
 
-            this.tiktokConnection = new WebcastPushConnection(username, opts);
+            this.tiktokConnection = new TikTokLiveConnection(username, opts);
             this._attachTiktokHandlers(this.tiktokConnection, username, null, null, null);
 
             this.tiktokConnection.connect().then(() => {
@@ -682,7 +713,7 @@ class ChatManager {
         };
         if (apiKey) opts.signApiKey = apiKey;
 
-        guest.connection = new WebcastPushConnection(guest.username, opts);
+        guest.connection = new TikTokLiveConnection(guest.username, opts);
         this._attachTiktokHandlers(guest.connection, guest.username, guest.id, guest.name, guest.color);
 
         try {
@@ -745,7 +776,7 @@ class ChatManager {
             };
             if (this.tiktokApiKey) opts.signApiKey = this.tiktokApiKey;
 
-            guest.connection = new WebcastPushConnection(username, opts);
+            guest.connection = new TikTokLiveConnection(username, opts);
             this._attachTiktokHandlers(guest.connection, username, guest.id, guest.name, guest.color);
 
             guest.connection.connect().then(() => {
