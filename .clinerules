@@ -97,6 +97,53 @@ After completing actions, provide:
    - Channel name display after connection
    - Master Clip: Single button clips all Twitch guests simultaneously
 
+8. **Panel-Based UI System** (March 2026 Overhaul)
+   - 5 draggable panels: Connections (config), Guests, Viewers, Chat, Activity
+   - **Vertical drag-and-drop reorder**: HTML5 drag API on panel headers
+     * Workspace-level `dragover` handler iterates all visible panels by Y midpoint
+     * `.dragging` CSS class collapses panel to 0 height during drag
+     * `.drop-placeholder` (6px blue gradient line) shows insertion point
+     * Layout order persisted to localStorage key `purptea_panel_order`
+     * Default order: config → guests → viewers → chat → activity
+     * Reset layout button in header restores default order
+   - **Panel collapse**: Toggle `.collapsed` class via `−` button
+     * `.panel.collapsed .panel-body { display: none !important; }` (needs `!important` for specificity over `#panel-config .panel-body { display: flex }`)
+     * `.panel.collapsed { height: auto !important; }` (overrides fixed heights on chat/activity panels)
+     * Collapse button rotates -90deg when collapsed
+   - **Auto-collapse on pop-out**: Chat + Connections panels auto-collapse when overlay is popped out, auto-expand when overlay is closed
+   - **Scrollable app**: `body { min-height: 100vh; overflow-y: auto }`, panels stack in flex column
+   - **Fixed panel heights**: `#panel-chat { height: 500px }`, `#panel-activity { height: 300px }`
+
+9. **Message Routing System**
+   - `routeMessage()` — Central router for all messages:
+     * Join messages (username starts with `👋`) → ticker bar
+     * System messages (emoji prefix) → activity feed
+     * Regular chat messages → chat panel
+   - `classifySystemMessage(username)` — Returns `{category, cssClass}` based on emoji:
+     * 🎁 → gifts, ❤️ → follows, ⭐ → subs, 👋 → joins
+     * ✂️/🗑️/⏱️/🔨/❌/🔄/✅ → misc (moderation/system)
+   - All 26 `addChatMessage('...System'...)` calls replaced with `routeMessage()`
+
+10. **Activity Feed**
+    - Shows system events (gifts, follows, subs, moderation, connections)
+    - Styled to match chat messages: `#2a2a3e` background, same box-shadow/padding/border-radius
+    - White text for all activity content (#ffffff)
+    - Platform badges match chat badge sizing (12px font, 9px padding, 12px border-radius)
+    - Filter buttons: All / 🎁 / ❤️ / ⭐ / 🔸 — toggle visibility by `data-category`
+    - `addActivityItem()` builds DOM with timestamp, platform badge, guest badge, text
+
+11. **Join Ticker Bar**
+    - Horizontal scrolling bar below header for join events
+    - `addTickerItem()` creates animated entries that auto-remove after CSS animation
+    - Max 20 items in ticker track
+    - Ticker label "🎫 Joins" on left side
+
+12. **Visual Updates (March 2026)**
+    - `.guest-badge` made universal (removed `.chat-message` scope) — rounded corners in both chat and activity
+    - All font sizes bumped +2px globally via regex replacement
+    - Starting window size: 1500×1100 (was 1200×800)
+    - Connections panel sections displayed in a row (`flex-direction: row`)
+
 7. **Chat Overlay Window**
    - Transparent overlay with ultra-transparent mode toggle
    - Pop-out button: position sticky, stays visible while scrolling
@@ -141,14 +188,14 @@ After completing actions, provide:
 - **IPC Events** (duplicate note): create-clip-from-overlay (overlay → main → renderer)
 
 ### File Structure
-- `main.js` - Electron main process (`contextIsolation: true`, ipcMain.handle handlers, auto-updater)
+- `main.js` - Electron main process (`contextIsolation: true`, ipcMain.handle handlers, auto-updater); window starts at 1500×1100
 - `chat-manager.js` - Main process module owning all chat lib connections (tmi.js, tiktok-live-connector, masterchat, guests); sends IPC events to renderer
 - `preload.js` - contextBridge for main window; exposes `window.purptea.*` API (connect/disconnect, openOverlay, clipboard, shell, on/once/removeAllListeners)
 - `overlay-preload.js` - contextBridge for overlay window; exposes close, toggleClickThrough, moderate, on('new-chat-message')
-- `renderer.js` - UI logic; zero `require()` calls; uses `window.purptea.*` for IPC; Web APIs (fetch, WebSocket, localStorage, OAuth) stay here
+- `renderer.js` - UI logic (~1791 lines); message routing (routeMessage, classifySystemMessage), panel system (drag-drop, collapse, filters, layout persistence), overlay pop-out with auto-collapse; zero `require()` calls
 - `overlay-renderer.js` - Overlay UI logic; uses `window.purptea.*` throughout
-- `index.html` - UI structure with config panels, guest modal
-- `styles.css` - Platform-specific styling and animations
+- `index.html` - 5-panel layout (config, guests, viewers, chat, activity) + join ticker + header + guest modal + mod context menu
+- `styles.css` - Dark theme (#1a1a2e base), panel system, CSS Grid/flex layouts, drag-and-drop states, platform badges
 - `overlay-styles.css` - Overlay-specific styles
 - `chat-overlay.html` - Overlay window HTML
 - `package.json` - Dependencies, scripts, electron-builder + GitHub Releases publish config

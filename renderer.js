@@ -58,6 +58,10 @@ let chatContainer, twitchChannelInput, tiktokUsernameInput, youtubeVideoInput;
 let connectTwitchBtn, connectTiktokBtn, connectYoutubeBtn;
 let twitchStatus, tiktokStatus, youtubeStatus;
 let guestsContainer, addGuestBtn;
+let activityContainer, tickerTrack;
+
+// ── Activity filter state ─────────────────────────────────────────────────
+let activeFilters = { all: true, gifts: true, follows: true, subs: true, misc: true };
 
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -271,6 +275,134 @@ function addChatMessage(platform, username, message, guestName = null, guestColo
     }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  SYSTEM MESSAGE ROUTING — classify → activity panel or ticker
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Classify system messages by emoji prefix.
+ * Returns { category, cssClass } or null for genuine chat.
+ */
+function classifySystemMessage(username) {
+    if (!username || !username.includes('System')) return null;
+    if (username.includes('🎁')) return { category: 'gifts',  cssClass: 'gift' };
+    if (username.includes('❤️')) return { category: 'follows', cssClass: 'follow' };
+    if (username.includes('⭐')) return { category: 'subs',    cssClass: 'sub' };
+    if (username.includes('✂️')) return { category: 'misc',    cssClass: 'misc' };
+    if (username.includes('🗑️') || username.includes('⏱️') || username.includes('🔨') || username.includes('❌'))
+        return { category: 'misc', cssClass: 'misc' };
+    if (username.includes('🔄') || username.includes('✅'))
+        return { category: 'misc', cssClass: 'misc' };
+    if (username.includes('👋')) return { category: 'joins', cssClass: 'follow' };
+    // Generic system
+    return { category: 'misc', cssClass: 'misc' };
+}
+
+/**
+ * Route a message: system → activity panel, member join → ticker, else → chat.
+ */
+function routeMessage(platform, username, message, guestName, guestColor, color, emotes, messageId, userId, youtubeMessageParts) {
+    const classification = classifySystemMessage(username);
+
+    if (classification) {
+        // Join events → ticker
+        if (classification.category === 'joins') {
+            addTickerItem(platform, message);
+            return;
+        }
+        // All other system messages → activity feed
+        addActivityItem(platform, username, message, classification, guestName, guestColor, color);
+        return;
+    }
+
+    // Regular chat message
+    addChatMessage(platform, username, message, guestName, guestColor, color, emotes, messageId, userId, youtubeMessageParts);
+}
+
+/**
+ * Add an item to the Activity feed panel.
+ */
+function addActivityItem(platform, username, message, classification, guestName, guestColor, color) {
+    if (!activityContainer) return;
+
+    // Remove empty state
+    const emptyState = activityContainer.querySelector('.empty-state');
+    if (emptyState) emptyState.remove();
+
+    const item = document.createElement('div');
+    item.className = `activity-item ${classification.cssClass}`;
+    item.dataset.category = classification.category;
+
+    // Check filter visibility
+    if (!activeFilters.all && !activeFilters[classification.category]) {
+        item.style.display = 'none';
+    }
+
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const platformSpan = document.createElement('span');
+    platformSpan.className = `activity-platform ${platform}`;
+    platformSpan.textContent = platform;
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'activity-time';
+    timeSpan.textContent = time;
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'activity-text';
+    textSpan.textContent = message;
+
+    item.appendChild(timeSpan);
+    item.appendChild(platformSpan);
+    if (guestName) {
+        const guestBadge = document.createElement('span');
+        guestBadge.className = 'guest-badge';
+        guestBadge.textContent = guestName;
+        guestBadge.style.backgroundColor = guestColor;
+        item.appendChild(guestBadge);
+    }
+    item.appendChild(document.createTextNode(' '));
+    item.appendChild(textSpan);
+
+    activityContainer.appendChild(item);
+    activityContainer.scrollTop = activityContainer.scrollHeight;
+}
+
+/**
+ * Add a join event to the ticker bar.
+ */
+function addTickerItem(platform, message) {
+    if (!tickerTrack) return;
+
+    // Remove placeholder
+    const placeholder = tickerTrack.querySelector('.ticker-placeholder');
+    if (placeholder) placeholder.remove();
+
+    const item = document.createElement('span');
+    item.className = 'ticker-item';
+
+    const badge = document.createElement('span');
+    badge.className = `ticker-platform ${platform}`;
+    badge.textContent = platform.charAt(0).toUpperCase();
+
+    const name = document.createElement('span');
+    name.className = 'ticker-name';
+    // Extract the user name from the message (format: "username joined the stream!")
+    name.textContent = message;
+
+    item.appendChild(badge);
+    item.appendChild(name);
+    tickerTrack.appendChild(item);
+
+    // Remove after animation completes
+    item.addEventListener('animationend', () => item.remove());
+
+    // Keep ticker tidy — limit to 20 items
+    while (tickerTrack.children.length > 20) {
+        tickerTrack.removeChild(tickerTrack.firstChild);
+    }
+}
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  IPC EVENT LISTENERS — Messages & status from ChatManager
@@ -279,7 +411,7 @@ function addChatMessage(platform, username, message, guestName = null, guestColo
 function setupIpcListeners() {
     // ── Incoming chat messages from main process ─────────────────────────
     window.purptea.on('chat:message', (data) => {
-        addChatMessage(
+        routeMessage(
             data.platform,
             data.username,
             data.message,
@@ -388,6 +520,10 @@ function setupIpcListeners() {
             popOutBtn.title = 'Pop Out Chat';
         }
         chatContainer.classList.remove('hidden');
+        const chatPanel = document.getElementById('panel-chat');
+        if (chatPanel) chatPanel.classList.remove('collapsed');
+        const configPanel = document.getElementById('panel-config');
+        if (configPanel) configPanel.classList.remove('collapsed');
     });
 
     // ── Clip request from overlay ────────────────────────────────────────
@@ -402,40 +538,40 @@ function setupIpcListeners() {
         switch (action) {
             case 'delete':
                 success = await deleteTwitchMessage(messageId);
-                if (success) addChatMessage('twitch', '🗑️ System', `Message from ${username} deleted`, null, null, '#888888');
+                if (success) routeMessage('twitch', '🗑️ System', `Message from ${username} deleted`, null, null, '#888888');
                 break;
             case 'timeout-1m':
                 success = await timeoutTwitchUser(userId, 60);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 1 minute`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 1 minute`, null, null, '#ff9900');
                 break;
             case 'timeout-10m':
                 success = await timeoutTwitchUser(userId, 600);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 10 minutes`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 10 minutes`, null, null, '#ff9900');
                 break;
             case 'timeout-1h':
                 success = await timeoutTwitchUser(userId, 3600);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 1 hour`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 1 hour`, null, null, '#ff9900');
                 break;
             case 'timeout-24h':
                 success = await timeoutTwitchUser(userId, 86400);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 24 hours`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 24 hours`, null, null, '#ff9900');
                 break;
             case 'ban':
                 success = await banTwitchUser(userId);
-                if (success) addChatMessage('twitch', '🔨 System', `${username} has been banned`, null, null, '#ff4444');
+                if (success) routeMessage('twitch', '🔨 System', `${username} has been banned`, null, null, '#ff4444');
                 break;
         }
         if (!success && action) {
-            addChatMessage('twitch', '❌ System', `Failed to ${action} - make sure you are a mod for this channel`, null, null, '#ff4444');
+            routeMessage('twitch', '❌ System', `Failed to ${action} - make sure you are a mod for this channel`, null, null, '#ff4444');
         }
     });
 
     // ── Auto-update events ───────────────────────────────────────────────
     window.purptea.on('update-available', () => {
-        addChatMessage('twitch', '🔄 System', 'A new update is being downloaded…', null, null, '#9146ff');
+        routeMessage('twitch', '🔄 System', 'A new update is being downloaded…', null, null, '#9146ff');
     });
     window.purptea.on('update-downloaded', () => {
-        addChatMessage('twitch', '✅ System', 'Update ready! Restart the app to install.', null, null, '#4caf50');
+        routeMessage('twitch', '✅ System', 'Update ready! Restart the app to install.', null, null, '#4caf50');
     });
 }
 
@@ -587,8 +723,8 @@ function updateGuestsDisplay() {
     if (guests.length === 0) {
         guestsContainer.innerHTML = `
             <div class="empty-state">
-                <p>No guests connected yet</p>
-                <p class="small-text">Click "+ Add Guest" to connect to a Twitch or TikTok stream</p>
+                <p>No additional guests</p>
+                <p class="small-text">Click "+" to add more streams</p>
             </div>
         `;
     }
@@ -755,7 +891,7 @@ function connectTwitchPubSub(userId, accessToken) {
                 const userInput = redemption.user_input || '';
                 let redeemMessage = `${user} redeemed: ${reward}`;
                 if (userInput) redeemMessage += ` - "${userInput}"`;
-                addChatMessage('twitch', '⭐ System', redeemMessage, null, null, '#9146ff');
+                routeMessage('twitch', '⭐ System', redeemMessage, null, null, '#9146ff');
             }
         }
     };
@@ -928,21 +1064,6 @@ function stopTwitchViewerPolling() {
     if (twitchViewerInterval) { clearInterval(twitchViewerInterval); twitchViewerInterval = null; }
 }
 
-function toggleViewersVisibility() {
-    const viewerStats = document.getElementById('viewer-stats');
-    const toggleBtn = document.getElementById('toggle-viewers-btn');
-    viewersVisible = !viewersVisible;
-    if (viewersVisible) {
-        viewerStats.style.display = 'flex';
-        toggleBtn.textContent = '👁️ Hide';
-        localStorage.setItem('viewersVisible', 'true');
-    } else {
-        viewerStats.style.display = 'none';
-        toggleBtn.textContent = '👁️ Show';
-        localStorage.setItem('viewersVisible', 'false');
-    }
-}
-
 async function getBroadcasterId(channelName) {
     if (!twitchAccessToken) return null;
     try {
@@ -985,9 +1106,9 @@ async function createClip() {
             const clipUrl = `https://clips.twitch.tv/${clipData.data[0].id}`;
             try {
                 await window.purptea.writeClipboard(clipUrl);
-                addChatMessage('twitch', '✂️ System', `Clip created and copied! ${clipUrl}`, null, null, '#9146ff');
+                routeMessage('twitch', '✂️ System', `Clip created and copied! ${clipUrl}`, null, null, '#9146ff');
             } catch (e) {
-                addChatMessage('twitch', '✂️ System', `Clip created! ${clipUrl} (Click to copy)`, null, null, '#9146ff');
+                routeMessage('twitch', '✂️ System', `Clip created! ${clipUrl} (Click to copy)`, null, null, '#9146ff');
             }
         } else {
             throw new Error('Failed to create clip');
@@ -1022,9 +1143,9 @@ async function createGuestClip(guestId) {
             const clipUrl = `https://clips.twitch.tv/${clipData.data[0].id}`;
             try {
                 await window.purptea.writeClipboard(clipUrl);
-                addChatMessage('twitch', '✂️ System', `Clip of ${guest.name} created and copied! ${clipUrl}`, null, null, guest.color);
+                routeMessage('twitch', '✂️ System', `Clip of ${guest.name} created and copied! ${clipUrl}`, null, null, guest.color);
             } catch (e) {
-                addChatMessage('twitch', '✂️ System', `Clip of ${guest.name} created! ${clipUrl}`, null, null, guest.color);
+                routeMessage('twitch', '✂️ System', `Clip of ${guest.name} created! ${clipUrl}`, null, null, guest.color);
             }
         } else {
             throw new Error('Failed to create clip');
@@ -1045,7 +1166,7 @@ async function createMasterClip() {
     let clipsCreated = 0;
     let clipsFailed = 0;
 
-    addChatMessage('twitch', '✂️ System', `Creating master clip for ${mainChannel} + ${twitchGuests.length} guest(s)...`, null, null, '#9146ff');
+    routeMessage('twitch', '✂️ System', `Creating master clip for ${mainChannel} + ${twitchGuests.length} guest(s)...`, null, null, '#9146ff');
 
     try {
         const result = await createClipForChannel(mainChannel);
@@ -1064,13 +1185,13 @@ async function createMasterClip() {
 
         if (mainClipUrl) {
             await window.purptea.writeClipboard(mainClipUrl);
-            addChatMessage('twitch', '✂️ System', `Master clip complete! ${clipsCreated} created, ${clipsFailed} failed. Main clip copied: ${mainClipUrl}`, null, null, '#9146ff');
+            routeMessage('twitch', '✂️ System', `Master clip complete! ${clipsCreated} created, ${clipsFailed} failed. Main clip copied: ${mainClipUrl}`, null, null, '#9146ff');
         } else {
-            addChatMessage('twitch', '✂️ System', `Master clip complete with errors: ${clipsCreated} created, ${clipsFailed} failed.`, null, null, '#ff6b6b');
+            routeMessage('twitch', '✂️ System', `Master clip complete with errors: ${clipsCreated} created, ${clipsFailed} failed.`, null, null, '#ff6b6b');
         }
     } catch (error) {
         console.error('Error creating master clip:', error);
-        addChatMessage('twitch', '✂️ System', 'Master clip failed. Check console for details.', null, null, '#ff6b6b');
+        routeMessage('twitch', '✂️ System', 'Master clip failed. Check console for details.', null, null, '#ff6b6b');
     }
 }
 
@@ -1099,12 +1220,243 @@ async function createClipForChannel(channel) {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  PANEL SYSTEM — Drag-and-Drop, Collapse, Layout Persistence
+// ══════════════════════════════════════════════════════════════════════════════
+
+const LAYOUT_STORAGE_KEY = 'purptea_panel_order';
+const DEFAULT_ORDER = ['config', 'guests', 'viewers', 'chat', 'activity'];
+
+/**
+ * Reorder panel DOM elements to match an ordered array of panel IDs.
+ */
+function applyOrder(order) {
+    const workspace = document.getElementById('panel-workspace');
+    if (!workspace) return;
+    order.forEach(id => {
+        const panel = document.getElementById(`panel-${id}`);
+        if (panel) workspace.appendChild(panel);
+    });
+}
+
+/**
+ * Save current DOM order to localStorage.
+ */
+function saveLayout() {
+    const workspace = document.getElementById('panel-workspace');
+    if (!workspace) return;
+    const order = [...workspace.querySelectorAll('.panel[data-panel]')].map(p => p.dataset.panel);
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(order));
+}
+
+/**
+ * Restore order from localStorage, or use defaults.
+ */
+function restoreLayout() {
+    const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (saved) {
+        try {
+            const order = JSON.parse(saved);
+            if (Array.isArray(order) && order.length === DEFAULT_ORDER.length) {
+                applyOrder(order);
+                return;
+            }
+        } catch (e) {
+            console.warn('Invalid saved layout, using defaults');
+        }
+    }
+    applyOrder(DEFAULT_ORDER);
+}
+
+/**
+ * Reset to default order.
+ */
+function resetLayout() {
+    applyOrder(DEFAULT_ORDER);
+    localStorage.removeItem(LAYOUT_STORAGE_KEY);
+    // Uncollapse all panels
+    document.querySelectorAll('.panel.collapsed').forEach(p => p.classList.remove('collapsed'));
+}
+
+/**
+ * Set up collapse toggle on all panels.
+ */
+function setupPanelCollapse() {
+    document.querySelectorAll('.panel-collapse-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const panel = btn.closest('.panel');
+            if (panel) panel.classList.toggle('collapsed');
+        });
+    });
+}
+
+/**
+ * Set up drag-and-drop to reorder panels vertically.
+ * Drag a panel by its header and drop it before/after another panel.
+ */
+function setupPanelDragDrop() {
+    const workspace = document.getElementById('panel-workspace');
+    if (!workspace) return;
+    let draggedPanel = null;
+    let placeholder = null;
+
+    function getOrCreatePlaceholder() {
+        if (!placeholder) {
+            placeholder = document.createElement('div');
+            placeholder.className = 'drop-placeholder';
+        }
+        return placeholder;
+    }
+
+    function removePlaceholder() {
+        if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+        placeholder = null;
+    }
+
+    /**
+     * Given a Y coordinate, find the closest gap between panels
+     * and insert the placeholder there. Works from workspace level
+     * so it doesn't depend on hovering exactly over a panel.
+     */
+    function updatePlaceholderPosition(clientY) {
+        if (!draggedPanel) return;
+        const ph = getOrCreatePlaceholder();
+        const panels = [...workspace.querySelectorAll('.panel[data-panel]:not(.dragging)')];
+        if (panels.length === 0) {
+            workspace.appendChild(ph);
+            return;
+        }
+
+        // Find which panel the cursor is closest to, and whether above or below midpoint
+        let insertRef = null; // insert before this element; null = append at end
+        for (const p of panels) {
+            const rect = p.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            if (clientY < midY) {
+                insertRef = p;
+                break;
+            }
+        }
+
+        if (insertRef) {
+            if (ph.nextSibling !== insertRef) {
+                workspace.insertBefore(ph, insertRef);
+            }
+        } else {
+            // Past all panels → append at end
+            if (ph !== workspace.lastElementChild) {
+                workspace.appendChild(ph);
+            }
+        }
+    }
+
+    // -- Per-panel: only dragstart needs to be on each panel --
+    workspace.querySelectorAll('.panel[data-panel]').forEach(panel => {
+        panel.setAttribute('draggable', 'true');
+
+        panel.addEventListener('dragstart', (e) => {
+            if (!e.target.closest('[data-drag-handle]') && e.target !== panel) {
+                e.preventDefault();
+                return;
+            }
+            draggedPanel = panel;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', panel.dataset.panel);
+            // After browser captures the drag image, collapse the panel
+            // so it doesn't block hit-testing on other panels
+            requestAnimationFrame(() => {
+                panel.classList.add('dragging');
+            });
+        });
+
+        panel.addEventListener('dragend', () => {
+            panel.classList.remove('dragging');
+            removePlaceholder();
+            draggedPanel = null;
+        });
+    });
+
+    // -- All positioning & dropping handled at workspace level --
+    workspace.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (!draggedPanel) return;
+        updatePlaceholderPosition(e.clientY);
+    });
+
+    workspace.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (!draggedPanel) return;
+        // Insert the dragged panel where the placeholder is
+        if (placeholder && placeholder.parentNode) {
+            workspace.insertBefore(draggedPanel, placeholder);
+        } else {
+            workspace.appendChild(draggedPanel);
+        }
+        draggedPanel.classList.remove('dragging');
+        removePlaceholder();
+        draggedPanel = null;
+        saveLayout();
+    });
+
+    // If drag leaves the workspace entirely, clean up
+    workspace.addEventListener('dragleave', (e) => {
+        if (!workspace.contains(e.relatedTarget)) {
+            removePlaceholder();
+        }
+    });
+}
+
+/**
+ * Set up activity filter buttons.
+ */
+function setupActivityFilters() {
+    const filterBtns = document.querySelectorAll('.filter-btn[data-filter]');
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = btn.dataset.filter;
+
+            if (filter === 'all') {
+                // Toggle all
+                const newState = !activeFilters.all;
+                activeFilters.all = newState;
+                activeFilters.gifts = newState;
+                activeFilters.follows = newState;
+                activeFilters.subs = newState;
+                activeFilters.misc = newState;
+                filterBtns.forEach(b => b.classList.toggle('active', newState));
+            } else {
+                activeFilters[filter] = !activeFilters[filter];
+                btn.classList.toggle('active', activeFilters[filter]);
+
+                // Update "All" btn state
+                const allActive = activeFilters.gifts && activeFilters.follows && activeFilters.subs && activeFilters.misc;
+                activeFilters.all = allActive;
+                const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
+                if (allBtn) allBtn.classList.toggle('active', allActive);
+            }
+
+            // Apply visibility to activity items
+            if (activityContainer) {
+                activityContainer.querySelectorAll('.activity-item').forEach(item => {
+                    const cat = item.dataset.category;
+                    item.style.display = (activeFilters.all || activeFilters[cat]) ? '' : 'none';
+                });
+            }
+        });
+    });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  INITIALIZE APP
 // ══════════════════════════════════════════════════════════════════════════════
 
 function initializeApp() {
     // Get DOM elements
     chatContainer = document.getElementById('chat-container');
+    activityContainer = document.getElementById('activity-container');
+    tickerTrack = document.getElementById('ticker-track');
     twitchChannelInput = document.getElementById('twitch-channel');
     tiktokUsernameInput = document.getElementById('tiktok-username');
     const tiktokApiKeyInput = document.getElementById('tiktok-api-key');
@@ -1117,6 +1469,15 @@ function initializeApp() {
     youtubeStatus = document.getElementById('youtube-status');
     guestsContainer = document.getElementById('guests-container');
     addGuestBtn = document.getElementById('add-guest-btn');
+
+    // ── Panel system setup ───────────────────────────────────────────────
+    restoreLayout();
+    setupPanelCollapse();
+    setupPanelDragDrop();
+    setupActivityFilters();
+
+    const resetLayoutBtn = document.getElementById('reset-layout-btn');
+    if (resetLayoutBtn) resetLayoutBtn.addEventListener('click', resetLayout);
 
     // ── Load saved values from localStorage ──────────────────────────────
     const savedTwitchChannel = localStorage.getItem('twitchChannel');
@@ -1253,6 +1614,10 @@ function initializeApp() {
                 popOutBtn.textContent = '✓';
                 popOutBtn.title = 'Close Pop Out';
                 chatContainer.classList.add('hidden');
+                const chatPanel = document.getElementById('panel-chat');
+                if (chatPanel) chatPanel.classList.add('collapsed');
+                const configPanel = document.getElementById('panel-config');
+                if (configPanel) configPanel.classList.add('collapsed');
             } else {
                 window.purptea.closeOverlay();
                 overlayActive = false;
@@ -1260,21 +1625,12 @@ function initializeApp() {
                 popOutBtn.textContent = '⤴';
                 popOutBtn.title = 'Pop Out Chat';
                 chatContainer.classList.remove('hidden');
+                const chatPanel = document.getElementById('panel-chat');
+                if (chatPanel) chatPanel.classList.remove('collapsed');
+                const configPanel = document.getElementById('panel-config');
+                if (configPanel) configPanel.classList.remove('collapsed');
             }
         });
-    }
-
-    // ── Viewer toggle ────────────────────────────────────────────────────
-    const toggleViewersBtn = document.getElementById('toggle-viewers-btn');
-    if (toggleViewersBtn) toggleViewersBtn.addEventListener('click', toggleViewersVisibility);
-
-    const savedViewersVisible = localStorage.getItem('viewersVisible');
-    if (savedViewersVisible === 'false') {
-        viewersVisible = false;
-        const viewerStats = document.getElementById('viewer-stats');
-        const toggleBtn = document.getElementById('toggle-viewers-btn');
-        if (viewerStats) viewerStats.style.display = 'none';
-        if (toggleBtn) toggleBtn.textContent = '👁️ Show';
     }
 
     // ── Set up all IPC event listeners ───────────────────────────────────
@@ -1394,38 +1750,38 @@ function initializeApp() {
                 if (success) {
                     currentTargetMessage.style.opacity = '0.3';
                     currentTargetMessage.style.textDecoration = 'line-through';
-                    addChatMessage('twitch', '🗑️ System', `Message from ${username} deleted`, null, null, '#ff9900');
+                    routeMessage('twitch', '🗑️ System', `Message from ${username} deleted`, null, null, '#ff9900');
                 }
                 break;
             case 'timeout-1m':
                 success = await timeoutTwitchUser(userId, 60);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 1 minute`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 1 minute`, null, null, '#ff9900');
                 break;
             case 'timeout-10m':
                 success = await timeoutTwitchUser(userId, 600);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 10 minutes`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 10 minutes`, null, null, '#ff9900');
                 break;
             case 'timeout-1h':
                 success = await timeoutTwitchUser(userId, 3600);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 1 hour`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 1 hour`, null, null, '#ff9900');
                 break;
             case 'timeout-24h':
                 success = await timeoutTwitchUser(userId, 86400);
-                if (success) addChatMessage('twitch', '⏱️ System', `${username} timed out for 24 hours`, null, null, '#ff9900');
+                if (success) routeMessage('twitch', '⏱️ System', `${username} timed out for 24 hours`, null, null, '#ff9900');
                 break;
             case 'ban':
                 if (confirm(`Are you sure you want to permanently ban ${username}?`)) {
                     success = await banTwitchUser(userId);
-                    if (success) addChatMessage('twitch', '🔨 System', `${username} has been banned`, null, null, '#ff4444');
+                    if (success) routeMessage('twitch', '🔨 System', `${username} has been banned`, null, null, '#ff4444');
                 } else {
-                    addChatMessage('twitch', 'System', 'Ban cancelled', null, null, '#888888');
+                    routeMessage('twitch', 'System', 'Ban cancelled', null, null, '#888888');
                     success = true;
                 }
                 break;
         }
 
         if (!success && action) {
-            addChatMessage('twitch', '❌ System', `Failed to ${action} - make sure you are a mod for this channel`, null, null, '#ff4444');
+            routeMessage('twitch', '❌ System', `Failed to ${action} - make sure you are a mod for this channel`, null, null, '#ff4444');
         }
         currentTargetMessage = null;
     });
