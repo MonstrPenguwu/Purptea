@@ -15,8 +15,12 @@ View Twitch, TikTok, and YouTube live chat in one window. Built with Electron.
 |---|---|
 | **Multi-Platform Chat** | Twitch · TikTok · YouTube in a single unified feed |
 | **Guest Streams** | Add unlimited guest channels from any platform |
+| **Send Twitch Messages** | Type and send to your main channel, a specific guest's channel, or all connected Twitch channels at once |
+| **Draggable Panel UI** | 6 resizable, collapsible panels — reorder by dragging, layout saved between sessions |
+| **Activity Feed** | Separate feed for system events: gifts, follows, subs, moderation, connections |
+| **Join Ticker** | Scrolling ticker bar for viewer joins across all platforms |
 | **Pop-Out Overlay** | Always-on-top transparent chat overlay for OBS or gaming |
-| **Twitch Moderation** | Delete messages, timeout, and ban directly from the app |
+| **Twitch Moderation** | Delete messages, timeout, and ban directly from the app or overlay |
 | **Clip Creation** | One-click clips for main channel and all guests ("Master Clip") |
 | **Twitch PubSub** | Channel point redemptions appear in chat |
 | **Twitch Emotes** | Full emote rendering in chat messages |
