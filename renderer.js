@@ -314,7 +314,8 @@ function routeMessage(platform, username, message, guestName, guestColor, color,
         return;
     }
 
-    // Regular chat message
+    // Regular chat message — check for commands first (non-blocking, never swallows the message)
+    processCommand(platform, username, message, guestName, guestColor);
     addChatMessage(platform, username, message, guestName, guestColor, color, emotes, messageId, userId, youtubeMessageParts);
 }
 
@@ -1228,11 +1229,131 @@ async function createClipForChannel(channel) {
 
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  CHAT COMMAND SYSTEM
+// ══════════════════════════════════════════════════════════════════════════════
+
+const COMMANDS_STORAGE_KEY = 'purptea_commands';
+
+/** Per-command cooldown tracker: key → last fired timestamp */
+const commandCooldowns = new Map();
+
+/** Live config — loaded from localStorage, mutated by UI toggles */
+let commandsConfig = {
+    enabled: true,
+    clip:  { enabled: true, cooldown: 30000 },
+    so:    { enabled: true, cooldown: 5000 },
+    hype:  { enabled: true, cooldown: 10000 },
+};
+
+function loadCommandsConfig() {
+    try {
+        const saved = localStorage.getItem(COMMANDS_STORAGE_KEY);
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (typeof parsed.enabled === 'boolean') commandsConfig.enabled = parsed.enabled;
+            for (const key of ['clip', 'so', 'hype']) {
+                if (parsed[key] && typeof parsed[key].enabled === 'boolean') {
+                    commandsConfig[key].enabled = parsed[key].enabled;
+                }
+            }
+        }
+    } catch { /* ignore */ }
+}
+
+function saveCommandsConfig() {
+    localStorage.setItem(COMMANDS_STORAGE_KEY, JSON.stringify(commandsConfig));
+}
+
+/** Returns true and stamps the cooldown if ready; false if still on cooldown. */
+function checkCommandCooldown(key, cooldown) {
+    const last = commandCooldowns.get(key) || 0;
+    if (Date.now() - last < cooldown) return false;
+    commandCooldowns.set(key, Date.now());
+    return true;
+}
+
+/**
+ * Called for every regular chat message. Checks if it starts with ! and
+ * triggers the associated action. Never swallows the chat message.
+ */
+async function processCommand(platform, username, message, guestName, guestColor) {
+    if (!commandsConfig.enabled) return;
+    const trimmed = (message || '').trim();
+    if (!trimmed.startsWith('!')) return;
+
+    const parts = trimmed.slice(1).split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    switch (cmd) {
+        case 'clip': {
+            if (!commandsConfig.clip.enabled) return;
+            if (!checkCommandCooldown('clip', commandsConfig.clip.cooldown)) return;
+            const channel = twitchChannelInput ? twitchChannelInput.value.trim().toLowerCase() : '';
+            if (!channel || !twitchAccessToken) {
+                addActivityItem(platform, '🎬 System', `${username} used !clip — Twitch login required`, { category: 'misc', cssClass: 'activity-misc' }, guestName, guestColor, null);
+                return;
+            }
+            addActivityItem(platform, '🎬 System', `${username} triggered !clip`, { category: 'misc', cssClass: 'activity-misc' }, guestName, guestColor, null);
+            const clipUrl = await createClipForChannel(channel);
+            if (clipUrl) {
+                routeMessage('twitch', '✂️ System', `!clip by ${username}: ${clipUrl}`, null, null, '#9146ff');
+                try { await window.purptea.writeClipboard(clipUrl); } catch { /* ignore */ }
+            } else {
+                addActivityItem(platform, '✂️ System', '!clip failed — could not create clip', { category: 'misc', cssClass: 'activity-misc' }, null, null, null);
+            }
+            break;
+        }
+        case 'so': {
+            if (!commandsConfig.so.enabled) return;
+            const target = args[0] ? args[0].replace(/^@/, '') : null;
+            if (!target) return;
+            const cooldownKey = `so:${target.toLowerCase()}`;
+            if (!checkCommandCooldown(cooldownKey, commandsConfig.so.cooldown)) return;
+            addActivityItem(platform, '📣 System', `${username} shouted out @${target}!`, { category: 'misc', cssClass: 'activity-misc' }, guestName, guestColor, null);
+            break;
+        }
+        case 'hype': {
+            if (!commandsConfig.hype.enabled) return;
+            if (!checkCommandCooldown('hype', commandsConfig.hype.cooldown)) return;
+            addActivityItem(platform, '🔥 System', `${username} hyped the stream!`, { category: 'misc', cssClass: 'activity-misc' }, guestName, guestColor, null);
+            playNotificationIfReady();
+            break;
+        }
+    }
+}
+
+/**
+ * Wire up the Commands panel UI — load persisted config and bind toggles.
+ */
+function initCommandsPanel() {
+    loadCommandsConfig();
+
+    const masterToggle = document.getElementById('commands-enabled');
+    const clipToggle   = document.getElementById('cmd-clip-enabled');
+    const soToggle     = document.getElementById('cmd-so-enabled');
+    const hypeToggle   = document.getElementById('cmd-hype-enabled');
+
+    if (!masterToggle) return;
+
+    masterToggle.checked = commandsConfig.enabled;
+    clipToggle.checked   = commandsConfig.clip.enabled;
+    soToggle.checked     = commandsConfig.so.enabled;
+    hypeToggle.checked   = commandsConfig.hype.enabled;
+
+    masterToggle.addEventListener('change', () => { commandsConfig.enabled       = masterToggle.checked; saveCommandsConfig(); });
+    clipToggle.addEventListener('change',   () => { commandsConfig.clip.enabled  = clipToggle.checked;   saveCommandsConfig(); });
+    soToggle.addEventListener('change',     () => { commandsConfig.so.enabled    = soToggle.checked;     saveCommandsConfig(); });
+    hypeToggle.addEventListener('change',   () => { commandsConfig.hype.enabled  = hypeToggle.checked;   saveCommandsConfig(); });
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  PANEL SYSTEM — Drag-and-Drop, Collapse, Layout Persistence
 // ══════════════════════════════════════════════════════════════════════════════
 
 const LAYOUT_STORAGE_KEY = 'purptea_panel_order';
-const DEFAULT_ORDER = ['config', 'guests', 'viewers', 'chat', 'chatinput', 'activity'];
+const DEFAULT_ORDER = ['config', 'guests', 'viewers', 'chat', 'chatinput', 'activity', 'commands'];
 
 /**
  * Reorder panel DOM elements to match an ordered array of panel IDs.
@@ -1484,6 +1605,7 @@ function initializeApp() {
     setupPanelCollapse();
     setupPanelDragDrop();
     setupActivityFilters();
+    initCommandsPanel();
 
     const resetLayoutBtn = document.getElementById('reset-layout-btn');
     if (resetLayoutBtn) resetLayoutBtn.addEventListener('click', resetLayout);

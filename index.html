@@ -210,6 +210,55 @@
             </div>
         </div>
 
+        <!-- Panel: Chat Commands -->
+        <div class="panel" id="panel-commands" data-panel="commands">
+            <div class="panel-header" data-drag-handle>
+                <span class="panel-title">📟 Chat Commands</span>
+                <div class="panel-controls">
+                    <label class="commands-master-toggle" title="Enable / disable all commands">
+                        <input type="checkbox" id="commands-enabled" checked>
+                        <span>On</span>
+                    </label>
+                    <button class="panel-collapse-btn" title="Collapse">−</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="commands-list">
+                    <div class="command-row">
+                        <label class="cmd-toggle" title="Enable !clip">
+                            <input type="checkbox" id="cmd-clip-enabled" checked>
+                        </label>
+                        <div class="cmd-info">
+                            <span class="cmd-name">!clip</span>
+                            <span class="cmd-desc">Creates a Twitch clip (requires Twitch login)</span>
+                        </div>
+                        <span class="cmd-cooldown">30s</span>
+                    </div>
+                    <div class="command-row">
+                        <label class="cmd-toggle" title="Enable !so">
+                            <input type="checkbox" id="cmd-so-enabled" checked>
+                        </label>
+                        <div class="cmd-info">
+                            <span class="cmd-name">!so [user]</span>
+                            <span class="cmd-desc">Viewer shoutout shown in Activity feed</span>
+                        </div>
+                        <span class="cmd-cooldown">5s</span>
+                    </div>
+                    <div class="command-row">
+                        <label class="cmd-toggle" title="Enable !hype">
+                            <input type="checkbox" id="cmd-hype-enabled" checked>
+                        </label>
+                        <div class="cmd-info">
+                            <span class="cmd-name">!hype</span>
+                            <span class="cmd-desc">Triggers a hype alert with notification sound</span>
+                        </div>
+                        <span class="cmd-cooldown">10s</span>
+                    </div>
+                </div>
+                <p class="commands-hint">Works from Twitch, TikTok &amp; YouTube chat</p>
+            </div>
+        </div>
+
     </div>
 
     <!-- Add Guest Modal -->
