@@ -28,6 +28,7 @@ View Twitch, TikTok, and YouTube live chat in one window. Built with Electron.
 | **YouTube Emoji** | Native YouTube emoji rendering in chat |
 | **Notification Sounds** | Configurable alert chime with volume and cooldown controls |
 | **Auto-Reconnect** | TikTok connections automatically recover from drops (exponential backoff) |
+| **Chat Commands** | Viewers type `!clip`, `!so`, or `!hype` in Twitch, TikTok, or YouTube chat to trigger actions in the app |
 | **Low Bandwidth** | Chat-only connections — no video streams, minimal data usage even with multiple platforms and guests active |
 | **Secure Architecture** | `contextIsolation` enabled — no `nodeIntegration` in renderers |
 | **Auto-Updates** | Receives updates automatically via GitHub Releases |
@@ -42,10 +43,10 @@ Grab the latest release for your platform:
 
 | Platform | File |
 |---|---|
-| Windows (Installer) | `Purptea-Setup-1.1.0.exe` |
-| Windows (Portable) | `Purptea-1.1.0.exe` |
-| macOS | `Purptea-1.1.0.dmg` |
-| Linux | `Purptea-1.1.0.AppImage` or `.deb` |
+| Windows (Installer) | `Purptea-Setup-1.2.0.exe` |
+| Windows (Portable) | `Purptea-1.2.0.exe` |
+| macOS | `Purptea-1.2.0.dmg` |
+| Linux | `Purptea-1.2.0.AppImage` or `.deb` |
 
 ---
 
