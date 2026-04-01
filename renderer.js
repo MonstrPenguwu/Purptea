@@ -113,6 +113,15 @@ function removeWelcomeMessage() {
     if (welcomeMsg) welcomeMsg.remove();
 }
 
+function syncOverlayChatHistory() {
+    if (!overlayActive || !chatContainer) return;
+
+    window.purptea.sendToOverlay({
+        type: 'sync-history',
+        html: chatContainer.innerHTML
+    });
+}
+
 function parseTwitchEmotes(message, emotes) {
     if (!emotes) {
         const fragment = document.createDocumentFragment();
@@ -259,13 +268,19 @@ function addChatMessage(platform, username, message, guestName = null, guestColo
     chatContainer.appendChild(messageDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
-    // Forward to overlay
+    // Forward the exact rendered markup to the overlay so both views stay in sync
     if (overlayActive) {
         window.purptea.sendToOverlay({
-            platform, username,
+            type: 'append-message',
+            html: messageDiv.outerHTML,
+            platform,
+            username,
             message: messageSpan.innerHTML,
-            guestName, guestColor, color,
-            messageId, userId
+            guestName,
+            guestColor,
+            color,
+            messageId,
+            userId
         });
     }
 
@@ -1749,6 +1764,9 @@ function initializeApp() {
                 if (chatPanel) chatPanel.classList.add('collapsed');
                 const configPanel = document.getElementById('panel-config');
                 if (configPanel) configPanel.classList.add('collapsed');
+
+                setTimeout(syncOverlayChatHistory, 150);
+                setTimeout(syncOverlayChatHistory, 500);
             } else {
                 window.purptea.closeOverlay();
                 overlayActive = false;

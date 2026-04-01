@@ -19,7 +19,7 @@ View Twitch, TikTok, and YouTube live chat in one window. Built with Electron.
 | **Draggable Panel UI** | 6 resizable, collapsible panels — reorder by dragging, layout saved between sessions |
 | **Activity Feed** | Separate feed for system events: gifts, follows, subs, moderation, connections |
 | **Join Ticker** | Scrolling ticker bar for viewer joins across all platforms |
-| **Pop-Out Overlay** | Always-on-top transparent chat overlay for OBS or gaming |
+| **Pop-Out Overlay** | Always-on-top transparent chat overlay for OBS or gaming — mirrors main chat styling and syncs existing history on open |
 | **Twitch Moderation** | Delete messages, timeout, and ban directly from the app or overlay |
 | **Clip Creation** | One-click clips for main channel and all guests ("Master Clip") |
 | **Twitch PubSub** | Channel point redemptions appear in chat |
@@ -98,10 +98,12 @@ chat-manager.js      Chat connections (tmi.js, tiktok-live-connector, masterchat
 preload.js           contextBridge API for main window
 overlay-preload.js   contextBridge API for overlay window
 renderer.js          UI logic, Twitch API calls, PubSub, DOM
-overlay-renderer.js  Pop-out overlay logic
+overlay-renderer.js  Pop-out overlay logic (syncs rendered HTML from main chat)
 ```
 
 Chat libraries run in the **main process** and forward messages to the renderer via IPC. The renderer has `nodeIntegration: false` and `contextIsolation: true` — it can only access the controlled API surface exposed through `window.purptea`.
+
+The pop-out overlay shares the main `styles.css` stylesheet and receives the exact rendered chat HTML from the main window, so messages look identical in both views. When the overlay opens, existing chat history is synced over immediately.
 
 ---
 

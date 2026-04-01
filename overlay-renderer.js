@@ -124,12 +124,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Listen for chat messages from main window
 window.purptea.on('new-chat-message', (messageData) => {
+    if (!overlayChat) return;
+
+    if (messageData?.type === 'sync-history') {
+        overlayChat.innerHTML = messageData.html && messageData.html.trim()
+            ? messageData.html
+            : `
+                <div class="overlay-welcome">
+                    <p>Chat overlay active</p>
+                    <p class="small">Waiting for messages...</p>
+                </div>
+            `;
+        overlayChat.scrollTop = overlayChat.scrollHeight;
+        return;
+    }
+
+    if (messageData?.type === 'append-message' && messageData.html) {
+        removeWelcomeMessage();
+        overlayChat.insertAdjacentHTML('beforeend', messageData.html);
+        overlayChat.scrollTop = overlayChat.scrollHeight;
+
+        const messages = overlayChat.querySelectorAll('.chat-message');
+        if (messages.length > 50) {
+            messages[0].remove();
+        }
+        return;
+    }
+
     removeWelcomeMessage();
     addChatMessageToOverlay(messageData);
 });
 
 function removeWelcomeMessage() {
-    const welcome = overlayChat.querySelector('.overlay-welcome');
+    const welcome = overlayChat.querySelector('.overlay-welcome, .welcome-message');
     if (welcome) {
         welcome.remove();
     }

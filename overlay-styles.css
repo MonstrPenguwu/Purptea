@@ -8,6 +8,11 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: transparent;
     overflow: hidden;
+    display: block;
+    min-height: 100vh;
+    padding: 0;
+    gap: 0;
+    color: #c0c0c8;
     -webkit-app-region: no-drag; /* Changed from drag to allow mouse events */
 }
 
@@ -147,79 +152,12 @@ body {
 }
 
 .chat-message {
-    padding: 10px;
-    margin-bottom: 8px;
-    border-radius: 8px;
-    background: rgba(42, 42, 62, 0.95);
-    animation: slideIn 0.3s ease-out;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
     word-wrap: break-word;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateX(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
-.chat-message .platform-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    margin-right: 6px;
-    text-transform: uppercase;
-}
-
-.chat-message.twitch .platform-badge {
-    background-color: #9146ff;
-    color: white;
-}
-
-.chat-message.tiktok .platform-badge {
-    background-color: #ff1b85;
-    color: white;
-}
-
-.chat-message.youtube .platform-badge {
-    background-color: #ff0000;
-    color: white;
-}
-
-.chat-message .guest-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 10px;
-    font-weight: 700;
-    margin-right: 8px;
-    color: white;
-    opacity: 0.9;
-}
-
-.chat-message .username {
-    font-weight: 700;
-    color: #e0e0e0;
-    margin-right: 8px;
+    overflow-wrap: anywhere;
 }
 
 .chat-message .message-text {
-    color: #c0c0c8;
     line-height: 1.4;
-}
-
-.message-text .emote {
-    height: 28px;
-    width: auto;
-    vertical-align: middle;
-    margin: 0 2px;
-    display: inline-block;
 }
 
 .overlay-chat::-webkit-scrollbar {
