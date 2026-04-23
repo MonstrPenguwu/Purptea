@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('purptea', {
     disconnectTiktok: () => ipcRenderer.invoke('chat:disconnect-tiktok'),
     connectYoutube: (videoId) => ipcRenderer.invoke('chat:connect-youtube', videoId),
     disconnectYoutube: () => ipcRenderer.invoke('chat:disconnect-youtube'),
+    resolveYoutubeLive: (source) => ipcRenderer.invoke('youtube:resolve-live', source),
 
     // ===== Guest Management =====
     addGuest: (platform, username, apiKey) => ipcRenderer.invoke('guest:add', platform, username, apiKey),
@@ -38,6 +39,7 @@ contextBridge.exposeInMainWorld('purptea', {
             'chat:status',           // Connection status updates
             'chat:viewer-update',    // Viewer count changes (TikTok roomUser)
             'guest:status',          // Guest connection status updates
+            'overlay-ready',         // Overlay window loaded and ready
             'overlay-closed',        // Overlay window was closed
             'create-clip-request',   // Overlay requested a clip
             'moderate-user-request', // Overlay requested moderation action
@@ -55,7 +57,7 @@ contextBridge.exposeInMainWorld('purptea', {
     once: (channel, callback) => {
         const validChannels = [
             'chat:message', 'chat:status', 'chat:viewer-update',
-            'guest:status', 'overlay-closed', 'create-clip-request',
+            'guest:status', 'overlay-ready', 'overlay-closed', 'create-clip-request',
             'moderate-user-request', 'update-available', 'update-downloaded'
         ];
         if (validChannels.includes(channel)) {
@@ -66,7 +68,7 @@ contextBridge.exposeInMainWorld('purptea', {
     removeAllListeners: (channel) => {
         const validChannels = [
             'chat:message', 'chat:status', 'chat:viewer-update',
-            'guest:status', 'overlay-closed', 'create-clip-request',
+            'guest:status', 'overlay-ready', 'overlay-closed', 'create-clip-request',
             'moderate-user-request', 'update-available', 'update-downloaded'
         ];
         if (validChannels.includes(channel)) {

@@ -31,6 +31,11 @@ function tiktokUid(data) {
     return data.user?.uniqueId || data.user?.userId || data.uniqueId || data.userId;
 }
 
+/** Extract comment text from various TikTok protobuf structures */
+function tiktokComment(data) {
+    return data.comment || data.data?.comment || data.text || data.message || data.content || '';
+}
+
 /** Normalize TikTok emotes from raw protobuf to renderer-friendly format */
 function normalizeTiktokEmotes(emotes) {
     if (!Array.isArray(emotes) || emotes.length === 0) return null;
@@ -270,19 +275,49 @@ class ChatManager {
     /** Attach TikTok event handlers (works for main or guest connections) */
     _attachTiktokHandlers(connection, username, guestId, guestName, guestColor) {
         connection.on('chat', (data) => {
-            const displayName = tiktokDisplayName(data);
-            this.send('chat:message', {
-                platform: 'tiktok',
-                username: displayName,
-                message: data.comment,
-                color: null,
-                emotes: normalizeTiktokEmotes(data.emotes),
-                messageId: null,
-                userId: null,
-                guestId,
-                guestName,
-                guestColor
-            });
+            try {
+                const displayName = tiktokDisplayName(data);
+                const comment = tiktokComment(data);
+                if (!comment && comment !== '') {
+                    console.warn('TikTok chat: empty comment from', displayName, '— raw keys:', Object.keys(data).join(', '));
+                }
+                this.send('chat:message', {
+                    platform: 'tiktok',
+                    username: displayName,
+                    message: comment,
+                    color: null,
+                    emotes: normalizeTiktokEmotes(data.emotes),
+                    messageId: null,
+                    userId: null,
+                    guestId,
+                    guestName,
+                    guestColor
+                });
+            } catch (err) {
+                console.error('TikTok chat handler error:', err, 'data keys:', data ? Object.keys(data).join(', ') : 'null');
+            }
+        });
+
+        // Handle emote chat messages (separate protobuf type from regular chat)
+        connection.on('emote', (data) => {
+            try {
+                const displayName = tiktokDisplayName(data);
+                const comment = tiktokComment(data) || data.emote?.emoteId || '[emote]';
+                this.send('chat:message', {
+                    platform: 'tiktok',
+                    username: displayName,
+                    message: comment,
+                    color: null,
+                    emotes: normalizeTiktokEmotes(data.emotes),
+                    messageId: null,
+                    userId: null,
+                    guestId,
+                    guestName,
+                    guestColor
+                });
+            } catch (err) {
+                console.error('TikTok emote handler error:', err);
+            }
         });
 
         connection.on('member', (data) => {
@@ -385,8 +420,26 @@ class ChatManager {
 
         // Safety net: log any message decoding issues to help diagnose missing messages
         connection.on('decodedData', (type, data) => {
-            if (type === 'WebcastChatMessage' && !data?.comment && !data?.data?.comment) {
-                console.warn('TikTok: Received WebcastChatMessage with no comment field:', JSON.stringify(data).substring(0, 200));
+            if (type === 'WebcastChatMessage') {
+                const comment = data?.comment || data?.data?.comment || data?.text || data?.message || data?.content;
+                const name = data?.user?.nickname || data?.user?.uniqueId || 'unknown';
+                if (!comment) {
+                    console.warn('TikTok decodedData: WebcastChatMessage with no comment from', name, '— keys:', data ? Object.keys(data).join(', ') : 'null');
+                }
+            }
+        });
+
+        // Catch-all: log protobuf message types we might be missing
+        connection.on('rawData', (msgType, binary) => {
+            // Log unexpected message types for diagnosis (not all types are chat)
+            const knownTypes = [
+                'WebcastChatMessage', 'WebcastMemberMessage', 'WebcastGiftMessage',
+                'WebcastSocialMessage', 'WebcastLikeMessage', 'WebcastRoomUserSeqMessage',
+                'WebcastControlMessage', 'WebcastLinkMicBattle', 'WebcastLinkMicArmies',
+                'WebcastSubNotifyMessage', 'WebcastEmoteChatMessage'
+            ];
+            if (!knownTypes.includes(msgType)) {
+                console.log(`TikTok rawData: unhandled type "${msgType}" (${binary?.length || 0} bytes)`);
             }
         });
 

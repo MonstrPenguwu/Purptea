@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, clipboard } = require('electron');
 const path = require('path');
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const ChatManager = require('./chat-manager');
 
@@ -34,6 +35,128 @@ const server = http.createServer((req, res) => {
         res.end('Not found');
     }
 });
+
+function parseYoutubeVideoIdFromString(value) {
+  if (!value) return null;
+
+  const directIdMatch = value.match(/^[\w-]{11}$/);
+  if (directIdMatch) return directIdMatch[0];
+
+  const urlStyleMatch = value.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([\w-]{11})/);
+  if (urlStyleMatch) return urlStyleMatch[1];
+
+  return null;
+}
+
+function fetchTextWithRedirects(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirects > 6) {
+      reject(new Error('Too many redirects while resolving YouTube live URL'));
+      return;
+    }
+
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      }
+    }, (res) => {
+      const status = res.statusCode || 0;
+      const location = res.headers.location;
+
+      if (status >= 300 && status < 400 && location) {
+        const nextUrl = new URL(location, url).toString();
+        res.resume();
+        fetchTextWithRedirects(nextUrl, redirects + 1).then(resolve).catch(reject);
+        return;
+      }
+
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        body += chunk;
+        if (body.length > 2_000_000) {
+          req.destroy(new Error('YouTube response too large while resolving live URL'));
+        }
+      });
+      res.on('end', () => resolve({ finalUrl: url, body, status }));
+    });
+
+    req.on('error', reject);
+    req.setTimeout(12000, () => req.destroy(new Error('Timeout resolving YouTube live URL')));
+  });
+}
+
+function buildYoutubeLiveLookupUrl(source) {
+  const raw = (source || '').trim();
+  if (!raw) throw new Error('Please enter a YouTube video ID, channel URL, or @handle');
+
+  if (raw.startsWith('@')) {
+    return `https://www.youtube.com/${raw}/live`;
+  }
+
+  const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch (err) {
+    throw new Error('Invalid YouTube input. Use a video ID, channel URL, or @handle.');
+  }
+
+  const host = parsed.hostname.replace(/^www\./i, '').toLowerCase();
+
+  if (host === 'youtu.be') {
+    return normalized;
+  }
+
+  if (!host.endsWith('youtube.com')) {
+    throw new Error('Please enter a valid YouTube URL or @handle');
+  }
+
+  const segments = parsed.pathname.split('/').filter(Boolean);
+  if (segments.length === 0) {
+    throw new Error('Please enter a YouTube channel URL or @handle');
+  }
+
+  if (segments[0].startsWith('@')) {
+    return `https://www.youtube.com/${segments[0]}/live`;
+  }
+
+  if (segments[0] === 'channel' || segments[0] === 'c' || segments[0] === 'user') {
+    if (!segments[1]) throw new Error('Incomplete YouTube channel URL');
+    return `https://www.youtube.com/${segments[0]}/${segments[1]}/live`;
+  }
+
+  return normalized;
+}
+
+async function resolveYoutubeLiveVideoId(source) {
+  const raw = (source || '').trim();
+  const directVideoId = parseYoutubeVideoIdFromString(raw);
+  if (directVideoId) {
+    return { videoId: directVideoId, resolvedFrom: raw };
+  }
+
+  const lookupUrl = buildYoutubeLiveLookupUrl(raw);
+  const { finalUrl, body } = await fetchTextWithRedirects(lookupUrl);
+
+  const redirectedId = parseYoutubeVideoIdFromString(finalUrl);
+  if (redirectedId) {
+    return { videoId: redirectedId, resolvedFrom: finalUrl };
+  }
+
+  const canonicalMatch = body.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/watch\?v=([\w-]{11})"/i);
+  if (canonicalMatch) {
+    return { videoId: canonicalMatch[1], resolvedFrom: lookupUrl };
+  }
+
+  const liveNowMatch = body.match(/"videoId":"([\w-]{11})"[^\n\r]{0,220}?"isLiveNow":true/);
+  if (liveNowMatch) {
+    return { videoId: liveNowMatch[1], resolvedFrom: lookupUrl };
+  }
+
+  throw new Error('Could not find an active live stream for this YouTube source right now.');
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -145,6 +268,14 @@ ipcMain.handle('chat:connect-youtube', async (_event, videoId) => {
 ipcMain.handle('chat:disconnect-youtube', async () => {
     return chatManager.disconnectYoutube();
 });
+ipcMain.handle('youtube:resolve-live', async (_event, source) => {
+    try {
+      const result = await resolveYoutubeLiveVideoId(source);
+      return { success: true, videoId: result.videoId, resolvedFrom: result.resolvedFrom };
+    } catch (err) {
+      return { success: false, error: err.message || 'Failed to resolve YouTube live source' };
+    }
+});
 ipcMain.handle('chat:send-twitch', async (_event, channel, message, token, username) => {
     return chatManager.sendTwitchMessage(channel, message, token, username);
 });
@@ -226,6 +357,12 @@ ipcMain.on('send-to-overlay', (_event, messageData) => {
 ipcMain.on('toggle-click-through', (_event, isUltraTransparent) => {
   if (overlayWindow) {
     overlayWindow.setIgnoreMouseEvents(false);
+  }
+});
+
+ipcMain.on('overlay-ready', () => {
+  if (mainWindow) {
+    mainWindow.webContents.send('overlay-ready');
   }
 });
 

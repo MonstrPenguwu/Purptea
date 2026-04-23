@@ -2,6 +2,7 @@
 // No require() calls — fully sandboxed.
 
 let overlayChat;
+let overlayReady = false;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
@@ -120,6 +121,10 @@ document.addEventListener('DOMContentLoaded', () => {
             currentTargetMessage = null;
         });
     }
+
+    // Signal to the main window that we're loaded and ready to receive messages
+    overlayReady = true;
+    window.purptea.overlayReady();
 });
 
 // Listen for chat messages from main window

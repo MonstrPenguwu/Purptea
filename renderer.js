@@ -529,6 +529,13 @@ function setupIpcListeners() {
         }
     });
 
+    // ── Overlay ready (handshake — overlay has loaded and registered listeners)
+    window.purptea.on('overlay-ready', () => {
+        // Now it's safe to sync history and start forwarding
+        overlayActive = true;
+        syncOverlayChatHistory();
+    });
+
     // ── Overlay closed ───────────────────────────────────────────────────
     window.purptea.on('overlay-closed', () => {
         overlayActive = false;
@@ -686,25 +693,72 @@ function handleTiktokConnect() {
     });
 }
 
-async function handleYoutubeConnect() {
+function parseYoutubeVideoId(input) {
+    const value = (input || '').trim();
+    if (!value) {
+        return { ok: false, error: 'Please enter a YouTube video ID, channel URL, or @handle' };
+    }
+
+    // Direct 11-character video ID
+    if (/^[\w-]{11}$/.test(value)) {
+        return { ok: true, videoId: value };
+    }
+
+    if (value.includes('youtube.com') || value.includes('youtu.be')) {
+        const urlMatch = value.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([\w-]{11})/);
+        if (urlMatch) {
+            return { ok: true, videoId: urlMatch[1] };
+        }
+
+        // URL is likely a channel source (e.g., /@handle, /channel/..., /user/...)
+        return { ok: false, needsResolve: true };
+    }
+
+    if (value.startsWith('@')) {
+        return { ok: false, needsResolve: true };
+    }
+
+    return { ok: false, error: 'Please use a YouTube video ID, channel URL, or @handle' };
+}
+
+async function handleYoutubeConnect(options = {}) {
+    const { silent = false, forceConnect = false } = options;
+
     if (youtubeConnected) {
+        if (forceConnect) return;
         await window.purptea.disconnectYoutube();
         youtubeConnected = false;
         return;
     }
 
-    const videoId = youtubeVideoInput.value.trim();
-    if (!videoId) { alert('Please enter a YouTube video ID or URL'); return; }
+    const sourceInput = (youtubeVideoInput.value || '').trim();
+    const parsed = parseYoutubeVideoId(sourceInput);
 
-    let cleanVideoId = videoId;
-    if (videoId.includes('youtube.com') || videoId.includes('youtu.be')) {
-        const urlMatch = videoId.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([\w-]{11})/);
-        if (urlMatch) {
-            cleanVideoId = urlMatch[1];
-        } else {
-            alert('Could not extract video ID from URL. Please use format: youtube.com/watch?v=VIDEO_ID');
+    let cleanVideoId = null;
+    if (parsed.ok) {
+        cleanVideoId = parsed.videoId;
+    } else if (parsed.needsResolve) {
+        youtubeStatus.textContent = 'Resolving live stream...';
+        youtubeStatus.className = 'status';
+
+        const normalizedSource = sourceInput.startsWith('@')
+            ? `https://www.youtube.com/${sourceInput}`
+            : sourceInput;
+
+        const resolveResult = await window.purptea.resolveYoutubeLive(normalizedSource);
+        if (!resolveResult.success) {
+            youtubeStatus.textContent = 'Connection Failed';
+            youtubeStatus.className = 'status disconnected';
+            if (!silent) {
+                alert(`Could not resolve a current live stream from that YouTube source.\n\n${resolveResult.error || 'Unknown error'}`);
+            }
             return;
         }
+
+        cleanVideoId = resolveResult.videoId;
+    } else {
+        if (!silent) alert(parsed.error);
+        return;
     }
 
     youtubeStatus.textContent = 'Connecting to video...';
@@ -713,19 +767,22 @@ async function handleYoutubeConnect() {
     const result = await window.purptea.connectYoutube(cleanVideoId);
 
     if (result.success) {
+        localStorage.setItem('youtubeSource', sourceInput);
         localStorage.setItem('youtubeVideo', cleanVideoId);
     } else {
         youtubeStatus.textContent = 'Connection Failed';
         youtubeStatus.className = 'status disconnected';
 
-        let errorMsg = `Failed to connect to YouTube.\n\nError: ${result.error}\n\nVideo ID tried: ${cleanVideoId}\n\n`;
-        if (result.error && result.error.includes('not found')) {
-            errorMsg += 'The video was not found or is not currently live.\n\n';
-            errorMsg += 'Please verify:\n1. The video is CURRENTLY STREAMING (not scheduled)\n2. The video ID is correct\n3. The stream has live chat enabled\n';
-        } else {
-            errorMsg += 'Common issues:\n- Video is not currently live\n- Live chat is disabled\n- Network/firewall blocking connection\n';
+        if (!silent) {
+            let errorMsg = `Failed to connect to YouTube.\n\nError: ${result.error}\n\nVideo ID tried: ${cleanVideoId}\n\n`;
+            if (result.error && result.error.includes('not found')) {
+                errorMsg += 'The video was not found or is not currently live.\n\n';
+                errorMsg += 'Please verify:\n1. The video is CURRENTLY STREAMING (not scheduled)\n2. The video ID is correct\n3. The stream has live chat enabled\n';
+            } else {
+                errorMsg += 'Common issues:\n- Video is not currently live\n- Live chat is disabled\n- Network/firewall blocking connection\n';
+            }
+            alert(errorMsg);
         }
-        alert(errorMsg);
     }
 }
 
@@ -1495,15 +1552,16 @@ function setupPanelDragDrop() {
         }
     }
 
-    // -- Per-panel: only dragstart needs to be on each panel --
+    // -- Per-panel: only the header handle is draggable --
     workspace.querySelectorAll('.panel[data-panel]').forEach(panel => {
-        panel.setAttribute('draggable', 'true');
+        panel.setAttribute('draggable', 'false');
 
-        panel.addEventListener('dragstart', (e) => {
-            if (!e.target.closest('[data-drag-handle]') && e.target !== panel) {
-                e.preventDefault();
-                return;
-            }
+        const dragHandle = panel.querySelector('[data-drag-handle]');
+        if (!dragHandle) return;
+
+        dragHandle.setAttribute('draggable', 'true');
+
+        dragHandle.addEventListener('dragstart', (e) => {
             draggedPanel = panel;
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', panel.dataset.panel);
@@ -1514,7 +1572,7 @@ function setupPanelDragDrop() {
             });
         });
 
-        panel.addEventListener('dragend', () => {
+        dragHandle.addEventListener('dragend', () => {
             panel.classList.remove('dragging');
             removePlaceholder();
             draggedPanel = null;
@@ -1629,7 +1687,7 @@ function initializeApp() {
     const savedTwitchChannel = localStorage.getItem('twitchChannel');
     const savedTiktokUsername = localStorage.getItem('tiktokUsername');
     const savedTiktokApiKey = localStorage.getItem('tiktokApiKey');
-    const savedYoutubeVideo = localStorage.getItem('youtubeVideo');
+    const savedYoutubeSource = localStorage.getItem('youtubeSource') || localStorage.getItem('youtubeVideo');
 
     if (savedTwitchChannel && twitchChannelInput) twitchChannelInput.value = savedTwitchChannel;
     if (savedTiktokUsername && tiktokUsernameInput) tiktokUsernameInput.value = savedTiktokUsername;
@@ -1724,7 +1782,9 @@ function initializeApp() {
         });
     }
 
-    if (savedYoutubeVideo && youtubeVideoInput) youtubeVideoInput.value = savedYoutubeVideo;
+    if (savedYoutubeSource && youtubeVideoInput) {
+        youtubeVideoInput.value = savedYoutubeSource;
+    }
 
     // ── Notification system ──────────────────────────────────────────────
     notificationSound = createNotificationSound();
@@ -1755,7 +1815,7 @@ function initializeApp() {
         popOutBtn.addEventListener('click', () => {
             if (!overlayActive) {
                 window.purptea.openOverlay();
-                overlayActive = true;
+                // Don't set overlayActive here — wait for 'overlay-ready' handshake
                 popOutBtn.classList.add('active');
                 popOutBtn.textContent = '✓';
                 popOutBtn.title = 'Close Pop Out';
@@ -1764,9 +1824,6 @@ function initializeApp() {
                 if (chatPanel) chatPanel.classList.add('collapsed');
                 const configPanel = document.getElementById('panel-config');
                 if (configPanel) configPanel.classList.add('collapsed');
-
-                setTimeout(syncOverlayChatHistory, 150);
-                setTimeout(syncOverlayChatHistory, 500);
             } else {
                 window.purptea.closeOverlay();
                 overlayActive = false;
@@ -1971,6 +2028,15 @@ function initializeApp() {
     if (connectTiktokBtn) connectTiktokBtn.addEventListener('click', handleTiktokConnect);
     if (connectYoutubeBtn) connectYoutubeBtn.addEventListener('click', handleYoutubeConnect);
 
+    // Auto-connect YouTube from saved value so reconnecting is one-time setup.
+    if (savedYoutubeSource && connectYoutubeBtn) {
+        setTimeout(() => {
+            if (!youtubeConnected && youtubeVideoInput && youtubeVideoInput.value.trim()) {
+                handleYoutubeConnect({ silent: true, forceConnect: true });
+            }
+        }, 350);
+    }
+
     // ── Twitch auth buttons ──────────────────────────────────────────────
     const twitchLoginBtn = document.getElementById('twitch-login-btn');
     const twitchLogoutBtn = document.getElementById('twitch-logout-btn');
@@ -2017,7 +2083,7 @@ function initializeApp() {
             const inputPlaceholder = document.getElementById('modal-username-input');
             if (selectedPlatform === 'twitch') { label.textContent = 'Enter Twitch channel:'; inputPlaceholder.placeholder = 'Channel name'; }
             else if (selectedPlatform === 'tiktok') { label.textContent = 'Enter TikTok username:'; inputPlaceholder.placeholder = 'Username'; }
-            else if (selectedPlatform === 'youtube') { label.textContent = 'Enter YouTube video ID or URL:'; inputPlaceholder.placeholder = 'Video ID or URL'; }
+            else if (selectedPlatform === 'youtube') { label.textContent = 'Enter YouTube video ID, channel URL, or @handle:'; inputPlaceholder.placeholder = 'Video ID, channel URL, or @handle'; }
             document.getElementById('modal-step-1').style.display = 'none';
             document.getElementById('modal-step-2').style.display = 'block';
             document.getElementById('modal-username-input').focus();

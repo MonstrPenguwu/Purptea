@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('purptea', {
     createClipFromOverlay: () => ipcRenderer.send('create-clip-from-overlay'),
     moderateUser: (data) => ipcRenderer.send('moderate-user', data),
 
+    // Signal that the overlay is loaded and ready to receive messages
+    overlayReady: () => ipcRenderer.send('overlay-ready'),
+
     // Listen for chat messages forwarded from main window
     on: (channel, callback) => {
         const validChannels = ['new-chat-message'];

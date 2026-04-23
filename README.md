@@ -16,7 +16,7 @@ View Twitch, TikTok, and YouTube live chat in one window. Built with Electron.
 | **Multi-Platform Chat** | Twitch · TikTok · YouTube in a single unified feed |
 | **Guest Streams** | Add unlimited guest channels from any platform |
 | **Send Twitch Messages** | Type and send to your main channel, a specific guest's channel, or all connected Twitch channels at once |
-| **Draggable Panel UI** | 6 resizable, collapsible panels — reorder by dragging, layout saved between sessions |
+| **Draggable Panel UI** | 6 resizable, collapsible panels — reorder by dragging panel headers, layout saved between sessions |
 | **Activity Feed** | Separate feed for system events: gifts, follows, subs, moderation, connections |
 | **Join Ticker** | Scrolling ticker bar for viewer joins across all platforms |
 | **Pop-Out Overlay** | Always-on-top transparent chat overlay for OBS or gaming — mirrors main chat styling and syncs existing history on open |
@@ -26,6 +26,7 @@ View Twitch, TikTok, and YouTube live chat in one window. Built with Electron.
 | **Twitch Emotes** | Full emote rendering in chat messages |
 | **TikTok Events** | Follows, shares, likes, gifts, and viewer count |
 | **YouTube Emoji** | Native YouTube emoji rendering in chat |
+| **YouTube Persistent Source** | Connect with video ID, channel URL, or `@handle`; app resolves the current live stream and remembers the source |
 | **Notification Sounds** | Configurable alert chime with volume and cooldown controls |
 | **Auto-Reconnect** | TikTok connections automatically recover from drops (exponential backoff) |
 | **Chat Commands** | Viewers type `!clip`, `!so`, or `!hype` in Twitch, TikTok, or YouTube chat to trigger actions in the app |
@@ -53,7 +54,7 @@ Grab the latest release for your platform:
 ## Getting Started
 
 1. **Launch Purptea**
-2. Enter a **Twitch channel name**, **TikTok username**, or **YouTube video ID/URL**
+2. Enter a **Twitch channel name**, **TikTok username**, or **YouTube video ID / channel URL / @handle**
 3. Click **Connect to Chat**
 4. Optionally add guest streams via the **+ Add Guest** button
 
