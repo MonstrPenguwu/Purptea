@@ -52,6 +52,7 @@ let notificationSound = null;
 
 // ── Overlay ───────────────────────────────────────────────────────────────
 let overlayActive = false;
+const OVERLAY_POP_OUT_STORAGE_KEY = 'overlayPopOutEnabled';
 
 // ── DOM elements (initialized in initializeApp) ──────────────────────────
 let chatContainer, twitchChannelInput, tiktokUsernameInput, youtubeVideoInput;
@@ -120,6 +121,25 @@ function syncOverlayChatHistory() {
         type: 'sync-history',
         html: chatContainer.innerHTML
     });
+}
+
+function setPopOutUiState(isOpen) {
+    const popOutBtn = document.getElementById('pop-out-btn');
+    if (popOutBtn) {
+        popOutBtn.classList.toggle('active', isOpen);
+        popOutBtn.textContent = isOpen ? '✓' : '⤴';
+        popOutBtn.title = isOpen ? 'Close Pop Out' : 'Pop Out Chat';
+    }
+
+    if (chatContainer) {
+        chatContainer.classList.toggle('hidden', isOpen);
+    }
+
+    const chatPanel = document.getElementById('panel-chat');
+    if (chatPanel) chatPanel.classList.toggle('collapsed', isOpen);
+
+    const configPanel = document.getElementById('panel-config');
+    if (configPanel) configPanel.classList.toggle('collapsed', isOpen);
 }
 
 function parseTwitchEmotes(message, emotes) {
@@ -533,23 +553,16 @@ function setupIpcListeners() {
     window.purptea.on('overlay-ready', () => {
         // Now it's safe to sync history and start forwarding
         overlayActive = true;
+        setPopOutUiState(true);
+        localStorage.setItem(OVERLAY_POP_OUT_STORAGE_KEY, '1');
         syncOverlayChatHistory();
     });
 
     // ── Overlay closed ───────────────────────────────────────────────────
     window.purptea.on('overlay-closed', () => {
         overlayActive = false;
-        const popOutBtn = document.getElementById('pop-out-btn');
-        if (popOutBtn) {
-            popOutBtn.classList.remove('active');
-            popOutBtn.textContent = '⤴';
-            popOutBtn.title = 'Pop Out Chat';
-        }
-        chatContainer.classList.remove('hidden');
-        const chatPanel = document.getElementById('panel-chat');
-        if (chatPanel) chatPanel.classList.remove('collapsed');
-        const configPanel = document.getElementById('panel-config');
-        if (configPanel) configPanel.classList.remove('collapsed');
+        setPopOutUiState(false);
+        localStorage.setItem(OVERLAY_POP_OUT_STORAGE_KEY, '0');
     });
 
     // ── Clip request from overlay ────────────────────────────────────────
@@ -1816,31 +1829,25 @@ function initializeApp() {
             if (!overlayActive) {
                 window.purptea.openOverlay();
                 // Don't set overlayActive here — wait for 'overlay-ready' handshake
-                popOutBtn.classList.add('active');
-                popOutBtn.textContent = '✓';
-                popOutBtn.title = 'Close Pop Out';
-                chatContainer.classList.add('hidden');
-                const chatPanel = document.getElementById('panel-chat');
-                if (chatPanel) chatPanel.classList.add('collapsed');
-                const configPanel = document.getElementById('panel-config');
-                if (configPanel) configPanel.classList.add('collapsed');
+                setPopOutUiState(true);
+                localStorage.setItem(OVERLAY_POP_OUT_STORAGE_KEY, '1');
             } else {
                 window.purptea.closeOverlay();
                 overlayActive = false;
-                popOutBtn.classList.remove('active');
-                popOutBtn.textContent = '⤴';
-                popOutBtn.title = 'Pop Out Chat';
-                chatContainer.classList.remove('hidden');
-                const chatPanel = document.getElementById('panel-chat');
-                if (chatPanel) chatPanel.classList.remove('collapsed');
-                const configPanel = document.getElementById('panel-config');
-                if (configPanel) configPanel.classList.remove('collapsed');
+                setPopOutUiState(false);
+                localStorage.setItem(OVERLAY_POP_OUT_STORAGE_KEY, '0');
             }
         });
     }
 
     // ── Set up all IPC event listeners ───────────────────────────────────
     setupIpcListeners();
+
+    const shouldRestorePopOut = localStorage.getItem(OVERLAY_POP_OUT_STORAGE_KEY) === '1';
+    if (shouldRestorePopOut) {
+        setPopOutUiState(true);
+        window.purptea.openOverlay();
+    }
 
     // ── Chat Input Panel ─────────────────────────────────────────────────
     const chatInputField = document.getElementById('chat-input-field');

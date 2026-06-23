@@ -15,6 +15,9 @@ try {
 
 let mainWindow;
 let overlayWindow = null;
+let isAppQuitting = false;
+let overlayIsReady = false;
+const OVERLAY_WINDOW_TITLE = 'Purptea Overlay';
 const chatManager = new ChatManager();
 
 // Create simple HTTP server for OAuth callback
@@ -179,6 +182,11 @@ function createWindow() {
   }
 
   mainWindow.on('closed', function () {
+    isAppQuitting = true;
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.destroy();
+      overlayWindow = null;
+    }
     chatManager.destroy();
     mainWindow = null;
   });
@@ -239,6 +247,10 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  isAppQuitting = true;
 });
 
 app.on('activate', function () {
@@ -309,42 +321,58 @@ ipcMain.handle('clipboard:write', async (_event, text) => {
 //  Overlay IPC
 // ══════════════════════════════════════════════════════════════════════════════
 ipcMain.on('open-overlay', () => {
-  if (overlayWindow) {
-    overlayWindow.focus();
-    return;
+  if (!overlayWindow || overlayWindow.isDestroyed()) {
+    overlayIsReady = false;
+    overlayWindow = new BrowserWindow({
+      width: 400,
+      height: 600,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      resizable: true,
+      skipTaskbar: false,
+      show: false,
+      title: OVERLAY_WINDOW_TITLE,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: false,
+        preload: path.join(__dirname, 'overlay-preload.js')
+      },
+      icon: path.join(__dirname, 'assets/icon.png')
+    });
+
+    overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+    overlayWindow.setTitle(OVERLAY_WINDOW_TITLE);
+    overlayWindow.loadFile('chat-overlay.html');
+
+    overlayWindow.on('close', (event) => {
+      if (isAppQuitting) return;
+      event.preventDefault();
+      overlayWindow.hide();
+      if (mainWindow) {
+        mainWindow.webContents.send('overlay-closed');
+      }
+    });
+
+    overlayWindow.on('closed', () => {
+      overlayWindow = null;
+    });
   }
 
-  overlayWindow = new BrowserWindow({
-    width: 400,
-    height: 600,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    resizable: true,
-    skipTaskbar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: false,
-      preload: path.join(__dirname, 'overlay-preload.js')
-    },
-    icon: path.join(__dirname, 'assets/icon.png')
-  });
-
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-  overlayWindow.loadFile('chat-overlay.html');
-
-  overlayWindow.on('closed', () => {
-    overlayWindow = null;
-    if (mainWindow) {
-      mainWindow.webContents.send('overlay-closed');
-    }
-  });
+  overlayWindow.show();
+  overlayWindow.focus();
+  if (overlayIsReady && mainWindow) {
+    mainWindow.webContents.send('overlay-ready');
+  }
 });
 
 ipcMain.on('close-overlay', () => {
   if (overlayWindow) {
-    overlayWindow.close();
+    overlayWindow.hide();
+    if (mainWindow) {
+      mainWindow.webContents.send('overlay-closed');
+    }
   }
 });
 
@@ -361,6 +389,7 @@ ipcMain.on('toggle-click-through', (_event, isUltraTransparent) => {
 });
 
 ipcMain.on('overlay-ready', () => {
+  overlayIsReady = true;
   if (mainWindow) {
     mainWindow.webContents.send('overlay-ready');
   }
